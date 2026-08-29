@@ -1,0 +1,100 @@
+[
+  {
+    "categoria": "protocolos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Protocolo Interno PROT-007 (Sepse em Pneumonia):\n1. Acionar equipe de UTI imediatamente.\n2. Iniciar antimicrobiano empírico conforme perfil bacteriológico.\n3. Administrar corticosteroides (dexametasona 12 mg/dia) em até 2 horas.\n4. Monitorizar lactato e FC 1 h após início dos corticosteroides.\n5. Avaliar transferência para UTI se lactato > 2,5 mmol/L ou FC < 100 bpm.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "protocolos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Protocolo Interno PROT-007 (Trombose venosa profunda) prevê:\n1. SpO2 < 94% ou desfecho agudo: acionar equipe de trombologia imediatamente.\n2. Exames obrigatórios: ECG, D-dímero, coagulograma, tomografia computadorizada das pernas.\n3. Suspender anticoagulantes sólidos se não confirmada trombose venosa antes de iniciar trombólise.\n4. Tratamento: alteplase 0,9 mg/kg até 60 minutos após início da trombólise.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "protocolos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "DESFECHO: SUGERIR_CONDUTA\n1. Acionar equipe de UTI (protocolo PROT-007).\n2. Iniciar infusão de corticosteroides (dexametasona 12 mg IV em 10 mL H2O) imediatamente.\n3. Coletar hemoculturas, gasometria e troponina conforme protocolo PROT-007.\n4. Iniciar anticoagulação com heparina encefálica (enoxaparina 1 mg/kg) antes de coleta de hemoculturas.\n5. Avaliar disponibilidade de equipamentos de monitorização contínua (ECG, SpO2, ECG-gerador) antes de transferência para UTI.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "faq_medicos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Conforme Protocolo Interno PROT-012:\n1. Exames de rotina (ECG, lactato sérico) antes de qualquer intervenção.\n2. Posição semi-reclinada; monitorização contínua.\n3. Evacuação de ar com balão-toráx ou videotoráx se possível.\n4. Monitorização hemodinâmica e gasométrica após evacuação.\n5. Avaliar necessidade de internação imediata para avaliação de tromboembolismo venoso.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "faq_medicos",
+    "fonte": false,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "1. Acionar equipe de Hipertensão Aguda (HIA) imediatamente.\n2. Coletar dados vitais, PA, FC, SpO2, glicemia capilar (se disponível).\n3. Iniciar anticoagulação com heparina IV 5000 UI em adultos.\n4. Administrar beta-bloqueador (atenolol 25 mg IV) conforme disponibilidade.\n5. Monitorizar PA e FC a cada 15 minutos até estabilização.\n6. Registrar receita na receita eletrônica conforme modelo interno.\n7. Registrar ocorrência no sistema interno de rastreamento de crise hipertensiva.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "faq_medicos",
+    "fonte": true,
+    "guardrail": false,
+    "desfecho": null,
+    "resposta": "1. O protocolo Interno PROT-029 prevê essa situação.\n2. O paciente deve ser encaminhado imediatamente para radiologia com laudo assinado no prontuário.\n3. Radiologia deve acionar equipe de imagem imediatamente, sem espera por horário comercial.\n4. Laudo deve ser entregue em até 30 minutos para cirurgia ou pronto-socorro.\n5. Sem laudo, equipe de imagem não pode liberar resultado; contatar assistente de imagem para orientação."
+  },
+  {
+    "categoria": "laudos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Conforme modelo interno LAUDO-CT-01, o laudo deve conter: 1) Identificação do paciente; 2) Data da emissão e assinatura do médico responsável; 3) Descrição detalhada dos padrões radiográficos (núcleo, mediana e extremidade); 4) Comparativo com imagens anteriores (se disponíveis); 5) Conclusão diagnóstica com código ICD-10 e justificativa; 6) Assinatura digital com reconhecimento de imagem."
+  },
+  {
+    "categoria": "laudos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Conforme Protocolo Interno PROT-012, o laudo deve conter:\n1. Identificação do paciente (nome, data de nascimento, número de identidade).\n2. Descrição detalhada da lesão biopsiada com tamanho, forma, coloração e presença de infiltrado celular.\n3. Classificação histológica com grau e pâncreas (maligno/benigno, grade, tipo de célula).\n4. Extensão da lesão (limite com epiderme, derme, vasos sanguíneos).\n5. Exames complementares solicitados (hematoxylinefluoresceina, citologia em suspensão, etc.).\n6. Assinatura do médico responsável e CRM.\nEsta estrutura garante a validade legal do laudo conforme modelo interno."
+  },
+  {
+    "categoria": "receitas",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Conforme Protocolo Interno PROT-017 (Clonazepam):\n1. A receita deve ser emitida por farmácia conveniada com CRM válido.\n2. O comprimido deve ser embalado em lacre duplo com data, hora e assinatura do farmacêutico.\n3. A receita é válida por 30 dias e pode ser renovada até 60 dias após emissão.\n4. A dose inicial não pode exceder 20 mg/mês.\n5. A receita deve ser armazenada em arquivo eletrônico pelo prazo legal.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes da prescrição."
+  },
+  {
+    "categoria": "receitas",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": null,
+    "resposta": "Conforme Protocolo Interno PROT-012 (Notificação de Receita):\n1. Notificação A: receita com receita digital (RxDigital) emitida pelo sistema interno.\n2. Notificação B: receita física sem RxDigital, obrigatória em até 30 dias após emissão.\n3. Notificação C: receita física com RxDigital, obrigatória em até 15 dias após emissão.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "cenarios_clinicos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": true,
+    "resposta": "DESFECHO: SUGERIR_CONDUTA\n1. O valor de TSH (9,8 mIU/L) está acima do limite superior do intervalo normal (ref. 0,4–4,0).\n2. A T4 livre (0,7 ng/dL) está abaixo do nível de referência.\n3. Protocolo Interno PROT-007 prevê ajuste de dose quando TSH > 4,0 mIU/L ou T4 livre < 0,8 ng/dL.\n4. Sugestão: ajustar para 150 mcg/dia de levotiroxina, com reavaliação em 4 semanas.\n5. Registrar nova receita e orientar paciente sobre possível aumento de apetite e peso inicial.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "cenarios_clinicos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": true,
+    "resposta": "DESFECHO: SUGERIR_CONDUTA\n1. Alertar equipe de nefrologia imediatamente (Protocolo Interno PROT-005).\n2. Solicitar hemoculturas, creatinina e ureia em todas as veias disponíveis.\n3. Avaliar necessidade de diálise emergencial com base na taxa de creatinina e função renal previa.\n4. Registrar laudo completo antes de qualquer decisão de conduta.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "cenarios_clinicos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": true,
+    "resposta": "DESFECHO: SUGERIR_CONDUTA\n1. Dor: O Protocolo Interno PROT-005 prevê uso de paracetamol 1 g q.i.d. + NSAID (diclofenaco 50 mg q.i.d.) + analgesia opioides (oxycodona 5 mg q.6h) conforme grau de dor.\n2. Controle glicêmico: O Protocolo Interno PROT-004 prevê controle de glicemia em torno de 140 mg/dL (7,8 mmol/L) com uso de insulina glargina 10 U/h via cateter endovenoso central (CVC) até controle glicêmico.\n3. Monitorização contínua: Monitorizar frequência cardíaca, pressão arterial, saturação de oxigênio e glicemia a cada 2 horas.\n4. Avaliar internamento: Avaliar internamento imediato para monitorização contínua e controle de dor antes de alta hospitalar.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  },
+  {
+    "categoria": "cenarios_clinicos",
+    "fonte": true,
+    "guardrail": true,
+    "desfecho": false,
+    "resposta": "DESFECHO: VERIFICAR PROT-007 (Protocolo Interno PROT-007)\n1. Hemocultura pendente: exigência mínima para orientação antibiótica.\n2. Hemograma e PCR/VHS pendentes: essenciais para orientação específica.\n3. Adenomegalia e perda de peso: indicam suspeita de doença infectiosa grave.\n4. Sem consolidação pulmonar na radiografia: reduz risco de sepse bacteriana.\n5. Sugestão: hemocultura confirmada antes de orientação antibiótica.\nEsta orientação é um apoio à decisão e requer validação do médico responsável antes de qualquer conduta."
+  }
+]
