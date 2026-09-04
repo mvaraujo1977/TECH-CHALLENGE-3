@@ -366,7 +366,6 @@ Declaradas explicitamente por rigor metodológico:
 | 3. Segurança e validação (limites, logging, explainability) | 🟡 Guardrails no modelo; logging e explainability pendentes |
 | 4. Organização do código e README | 🟡 Em construção |
 
----
 
 
 
