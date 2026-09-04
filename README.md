@@ -368,9 +368,7 @@ Declaradas explicitamente por rigor metodológico:
 
 ---
 
-## Equipe
 
-<!-- Preencher com os integrantes do grupo -->
 
 | Nome | RM |
 |---|---|
