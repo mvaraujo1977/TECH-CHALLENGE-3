@@ -8,6 +8,7 @@ API do sistema hospitalar; aqui é um JSON com a mesma interface de consulta.
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -122,13 +123,37 @@ def formatar_para_prompt(paciente: dict) -> str:
 
 
 def sinais_de_gravidade(paciente: dict) -> list[str]:
-    """Detecta sinais de alarme a partir dos sinais vitais.
+    """Detecta sinais de alarme no prontuário.
 
     Verificação determinística, independente do modelo. Serve como segunda
     camada: se o LLM classificar um caso grave como rotineiro, esta função
-    ainda sinaliza. Os limiares são conservadores e propositalmente simples —
-    a intenção é sinalizar para revisão humana, não diagnosticar.
+    ainda sinaliza. Em execução real isso ocorreu em 2 de 8 casos (AVC em
+    janela terapêutica e cetoacidose grave, ambos classificados pelo modelo
+    como `SUGERIR_CONDUTA`).
+
+    Duas fontes de sinal, por motivos diferentes:
+
+    - **Sinais vitais**, com limiares conservadores. Cobrem instabilidade
+      hemodinâmica e respiratória.
+    - **Resultados de exames e protocolos de urgência.** Necessário porque a
+      gravidade não sempre aparece nos sinais vitais: um IAMCSST confirmado por
+      eletrocardiograma e troponina pode cursar com pressão e saturação
+      normais. Foi o que aconteceu com o PAC-002 na primeira execução — supra
+      de ST em três derivações e troponina 95 vezes o valor de referência,
+      roteado como conduta de rotina porque nenhum sinal vital estava alterado.
+
+    Os limiares são propositalmente simples: a intenção é sinalizar para
+    revisão humana, não diagnosticar.
     """
+    alertas: list[str] = []
+    alertas.extend(_alertas_sinais_vitais(paciente))
+    alertas.extend(_alertas_exames(paciente))
+    alertas.extend(_alertas_protocolo_urgencia(paciente))
+    return alertas
+
+
+def _alertas_sinais_vitais(paciente: dict) -> list[str]:
+    """Alarmes derivados dos sinais vitais."""
     alertas: list[str] = []
     sv = paciente.get("sinais_vitais", {})
 
@@ -164,3 +189,118 @@ def sinais_de_gravidade(paciente: dict) -> list[str]:
         alertas.append(f"Alteração térmica ({temp}°C)")
 
     return alertas
+
+
+# Achados em resultado de exame que caracterizam urgência por si sós.
+# A busca é por substring no texto do resultado, então os termos são escolhidos
+# para serem específicos: "supradesnivelamento de ST" não aparece em laudo
+# normal, ao contrário de palavras como "alteração" ou "elevado".
+ACHADOS_CRITICOS = (
+    ("supradesnivelamento de st", "Supradesnivelamento de ST no eletrocardiograma"),
+    ("supra de st", "Supradesnivelamento de ST no eletrocardiograma"),
+    ("bloqueio de ramo esquerdo novo", "Bloqueio de ramo esquerdo novo"),
+    ("hemorragia", "Achado hemorrágico em exame de imagem"),
+)
+
+# Exames cujo valor numérico caracteriza urgência acima de um limiar.
+# (fragmento do nome, rótulo, limiar) — o valor é extraído do texto livre do
+# resultado, então a extração é tolerante a formato.
+LIMIARES_CRITICOS = (
+    ("troponina", "Troponina elevada", 0.04),
+    ("lactato", "Lactato elevado", 4.0),
+)
+
+
+def _primeiro_numero(texto: str) -> float | None:
+    """Extrai o primeiro número do texto, aceitando vírgula decimal."""
+    correspondencia = re.search(r"(\d+(?:[.,]\d+)?)", texto)
+    if not correspondencia:
+        return None
+    try:
+        return float(correspondencia.group(1).replace(",", "."))
+    except ValueError:
+        return None
+
+
+# Termos que negam o achado quando aparecem imediatamente antes dele.
+# Necessário porque a busca por substring é cega a negação: "sem hemorragia"
+# contém "hemorragia" e seria contado como achado positivo. Foi o que ocorreu
+# no PAC-007, cujo laudo diz "Sem hemorragia ou isquemia aguda" e gerou um
+# alerta hemorrágico — inversão do significado do laudo.
+NEGACOES = (
+    "sem", "não", "nao", "ausência de", "ausencia de", "ausente",
+    "negativo para", "negativa para", "exclui", "descarta",
+)
+
+# Janela de caracteres antes do achado em que a negação é procurada. Curta o
+# bastante para não capturar negação de outra oração ("sem febre; hemorragia
+# subaracnóidea" não deve ser lido como negação da hemorragia).
+JANELA_NEGACAO = 24
+
+
+def _esta_negado(texto: str, posicao: int) -> bool:
+    """Verifica se há termo de negação pouco antes da posição indicada."""
+    inicio = max(0, posicao - JANELA_NEGACAO)
+    antes = texto[inicio:posicao]
+
+    # Uma pontuação forte encerra a oração: negação anterior a ela não se
+    # aplica ao achado.
+    for separador in (";", ".", " e ", ", com", ", e "):
+        if separador in antes:
+            antes = antes.rsplit(separador, 1)[1]
+
+    return any(re.search(rf"\b{re.escape(n)}\b", antes) for n in NEGACOES)
+
+
+def _alertas_exames(paciente: dict) -> list[str]:
+    """Alarmes derivados de resultados de exames já disponíveis."""
+    alertas: list[str] = []
+
+    for exame in exames_disponiveis(paciente):
+        nome = str(exame.get("nome", "")).lower()
+        resultado = str(exame.get("resultado", ""))
+        resultado_baixo = resultado.lower()
+
+        for termo, rotulo in ACHADOS_CRITICOS:
+            posicao = resultado_baixo.find(termo)
+            if posicao >= 0 and not _esta_negado(resultado_baixo, posicao):
+                alertas.append(f"{rotulo} ({exame['nome']})")
+                break
+
+        for fragmento, rotulo, limiar in LIMIARES_CRITICOS:
+            if fragmento not in nome:
+                continue
+            valor = _primeiro_numero(resultado)
+            if valor is not None and valor > limiar:
+                alertas.append(f"{rotulo}: {valor} (referência ≤ {limiar})")
+
+    # Deduplica preservando a ordem — um mesmo achado pode aparecer em mais de
+    # um exame (ECG e laudo, por exemplo).
+    vistos, unicos = set(), []
+    for alerta in alertas:
+        if alerta not in vistos:
+            vistos.add(alerta)
+            unicos.append(alerta)
+    return unicos
+
+
+# Protocolos cuja ativação é, por definição, urgência com tempo-alvo. Quando o
+# prontuário associa o paciente a um deles, o caso é tratado como alerta ainda
+# que os sinais vitais estejam normais — é o que a curadoria do prontuário está
+# afirmando ao fazer essa associação.
+PROTOCOLOS_URGENCIA = {
+    "PROT-001": "protocolo de sepse ativado",
+    "PROT-002": "protocolo de síndrome coronariana aguda ativado",
+    "PROT-003": "protocolo de AVC agudo ativado",
+    "PROT-009": "protocolo de cetoacidose diabética ativado",
+    "PROT-031": "protocolo de anafilaxia ativado",
+}
+
+
+def _alertas_protocolo_urgencia(paciente: dict) -> list[str]:
+    """Alarmes derivados dos protocolos que o prontuário associa ao paciente."""
+    return [
+        f"Protocolo de urgência: {descricao} ({codigo})"
+        for codigo in paciente.get("protocolos_relacionados") or []
+        if (descricao := PROTOCOLOS_URGENCIA.get(codigo))
+    ]
