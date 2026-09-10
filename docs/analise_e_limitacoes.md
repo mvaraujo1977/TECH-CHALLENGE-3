@@ -17,7 +17,8 @@ pacientes da base de prontuários, em GPU T4 com o modelo quantizado em 4-bit.
 | Ressalva de validação humana na resposta final | 8/8 |
 | — emitida espontaneamente pelo modelo | 7/8 |
 | — inserida por código | 1/8 |
-| Rótulo de decisão válido emitido pelo modelo | 0/8 |
+| Rótulo de decisão válido emitido pelo modelo | 2/8 |
+| — clinicamente correto | 0/8 |
 | Registros de auditoria completos | 8/8 |
 
 Tempo médio por consulta: ~30 s em T4 (contra ~500 s em CPU).
@@ -63,7 +64,9 @@ anterior, em CPU com bfloat16, a taxa espontânea foi de 1/2.
 
 ### O rótulo de decisão do modelo é inutilizável
 
-Nenhuma das 8 respostas produziu um rótulo válido. As falhas observadas:
+Apenas 2 das 8 respostas produziram um rótulo sintaticamente válido, e nos
+dois casos o rótulo estava clinicamente errado — ambos classificaram urgência
+como conduta de rotina. As falhas observadas:
 
 | Paciente | Primeira linha |
 |---|---|
