@@ -70,15 +70,25 @@ def criar_no_recuperar(retriever) -> Callable[[EstadoClinico], dict]:
     def recuperar_protocolos(estado: EstadoClinico) -> dict:
         caminho = [*estado.get("caminho", []), "recuperar_protocolos"]
 
-        # A busca combina a pergunta com a queixa do paciente. Perguntas como
-        # "qual a conduta?" são vagas demais isoladamente; a queixa é o que
-        # ancora a recuperação no tema certo.
+        # Com paciente, a consulta é queixa + antecedentes, e a pergunta fica
+        # de fora. Ela é praticamente constante entre consultas ("qual a
+        # conduta?") e só dilui o sinal clínico: medido nos 8 pacientes, o
+        # rank médio do protocolo correto na busca livre melhorou de MRR 0.46
+        # (pergunta + queixa) para 0.67 (queixa + antecedentes), e os acertos
+        # em primeiro lugar foram de 2/8 para 4/8.
+        #
+        # O custo é perder a intenção de uma pergunta específica na
+        # recuperação. É aceitável porque o escopo do prontuário já restringe
+        # o conjunto de protocolos; a pergunta continua no prompt do modelo.
         consulta = estado.get("pergunta", "")
         paciente = estado.get("paciente")
         codigos = None
 
         if paciente:
-            consulta = f"{consulta} {paciente['admissao']['queixa']}"
+            consulta = paciente["admissao"]["queixa"]
+            antecedentes = paciente.get("antecedentes") or []
+            if antecedentes:
+                consulta = f"{consulta}. Antecedentes: {'; '.join(antecedentes)}"
             # O prontuário indica quais protocolos se aplicam. Restringir a
             # busca a eles evita o caso observado em execução real: protocolo
             # de anafilaxia recuperado para suspeita de tromboembolismo.

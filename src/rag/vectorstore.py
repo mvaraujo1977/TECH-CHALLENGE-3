@@ -14,6 +14,16 @@ from langchain_core.embeddings import Embeddings
 from src import config
 from src.rag.documentos import carregar_protocolos, dividir_em_chunks
 
+# O Chroma usa L2 quando a coleção não declara a métrica, e o LangChain então
+# converte a distância com a transformação euclidiana (1 - d/√2). O resultado
+# é uma faixa comprimida que não é similaridade de cosseno — medido nos 8
+# pacientes, relevantes e irrelevantes ficaram todos entre 0.21 e 0.46, com
+# medianas separadas por 0.004. Declarar cosseno torna o score interpretável e
+# o limiar comparável ao que se publica sobre o bge-m3.
+#
+# Trocar esta constante invalida o índice: reindexe com `recriar=True`.
+ESPACO_DISTANCIA = {"hnsw:space": "cosine"}
+
 
 def criar_embeddings(nome_modelo: str | None = None) -> Embeddings:
     """Instancia o modelo de embeddings.
@@ -68,6 +78,7 @@ def indexar(
         embedding=embeddings,
         collection_name=config.NOME_COLECAO,
         persist_directory=str(diretorio),
+        collection_metadata=ESPACO_DISTANCIA,
     )
 
 
@@ -87,6 +98,18 @@ class RetrieverFiltrado:
        aplicam ao paciente (`protocolos_relacionados`), a busca é restrita a
        eles. É a informação mais confiável disponível: veio da curadoria do
        prontuário, não de similaridade de texto.
+
+    O corte **só se aplica à busca livre**, sem escopo. Dentro de um escopo
+    curado a pergunta já não é "isto é pertinente?", e sim "qual trecho destes
+    protocolos responde melhor" — aí o corte só subtrai.
+
+    Havia aqui um fallback que repetia a busca sem escopo quando nada passava
+    do corte. Foi removido: medido nos 8 pacientes, ele disparava exatamente
+    nos casos em que o escopo era necessário e anulava a proteção. Em 3 dos 8,
+    o escopo correto ficava abaixo do corte e o fallback devolvia protocolo de
+    outra condição — PROT-007 (TEP) para uma sepse, e anafilaxia, controle
+    glicêmico e AVC para uma cefaleia súbita. A recuperação passava a produzir
+    a contaminação que o escopo existia para impedir.
     """
 
     def __init__(self, vectorstore, top_k: int, limite: float):
@@ -112,15 +135,12 @@ class RetrieverFiltrado:
             )
             return documentos
 
-        relevantes = [doc for doc, score in pares if score >= self.limite]
+        # Dentro de um escopo curado, todos os candidatos já são pertinentes
+        # por construção — devolve os melhores sem corte.
+        if codigos:
+            return [doc for doc, _ in pares]
 
-        # Quando nada passa do corte com o escopo restrito, tenta de novo sem
-        # ele: é melhor devolver o protocolo mais próximo do tema do que
-        # devolver nada por causa de um filtro mal ajustado.
-        if not relevantes and codigos:
-            return self.invoke(consulta, codigos=None)
-
-        return relevantes
+        return [doc for doc, score in pares if score >= self.limite]
 
 
 def criar_retriever(

@@ -47,15 +47,23 @@ TOP_K = 4
 
 # Corte mínimo de relevância (0 a 1) para um trecho entrar no contexto.
 #
-# Sem o corte, o Chroma sempre devolve TOP_K documentos — inclusive quando
-# nenhum é pertinente. Em execução real, uma consulta sobre tromboembolismo
-# recuperou o protocolo de anafilaxia, e o modelo (treinado para sempre citar
-# uma fonte) produziu conduta de anafilaxia com citação correta. Contexto
-# irrelevante é pior que contexto vazio.
+# Vale **apenas para a busca livre**, sem paciente. Quando o prontuário define
+# o escopo de protocolos, o retriever devolve os melhores daquele escopo sem
+# corte — a pertinência já vem da curadoria.
 #
-# O valor foi calibrado empiricamente com bge-m3; medir de novo ao trocar o
-# modelo de embeddings.
-LIMITE_RELEVANCIA = 0.35
+# É um piso contra material claramente alheio, não um separador de relevância.
+# Medido em cosseno sobre os 8 pacientes, os scores do bge-m3 não distinguem
+# as classes: relevantes com mediana 0.558 contra 0.550 dos irrelevantes,
+# faixas quase idênticas. Não existe limiar que separe — qualquer valor alto o
+# bastante para barrar irrelevantes também derruba os corretos.
+#
+# 0.45 preserva 18/18 dos trechos corretos e remove só 3/62 dos demais: corta
+# o que destoa e não finge discriminar o resto.
+#
+# Escala dependente da métrica: com a coleção em cosseno (ver ESPACO_DISTANCIA
+# em rag/vectorstore.py) os scores ficam entre ~0.35 e ~0.65. Reindexar em
+# outra métrica invalida este valor.
+LIMITE_RELEVANCIA = 0.45
 
 NOME_COLECAO = "protocolos_hospital"
 
