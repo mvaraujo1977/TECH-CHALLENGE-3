@@ -26,6 +26,8 @@ dependencies = [
 [project.optional-dependencies]
 # Quantização 4-bit — só funciona com GPU NVIDIA
 gpu = ["bitsandbytes>=0.44"]
+# Suíte de testes — roda sem GPU e sem baixar modelo
+dev = ["pytest>=8.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -33,3 +35,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
