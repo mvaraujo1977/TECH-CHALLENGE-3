@@ -23,6 +23,10 @@ pacientes da base de prontuários, em GPU T4 com o modelo quantizado em 4-bit.
 
 Tempo médio por consulta: ~30 s em T4 (contra ~500 s em CPU).
 
+> Os registros em `docs/resultados/demo.jsonl` são desta execução, anterior à
+> ampliação da detecção de gravidade descrita na seção 3. O PAC-002 aparece ali
+> como `SUGERIR_CONDUTA`; com o código atual, seria `EMITIR_ALERTA`.
+
 ---
 
 ## 2. O que funcionou
