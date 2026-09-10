@@ -1,27 +1,96 @@
 # Tech Challenge — Fase 3
 
-Assistente virtual médico de apoio à decisão clínica, construído com fine-tuning de LLM, RAG via LangChain e fluxos de decisão automatizados com LangGraph.
+Assistente virtual médico de apoio à decisão clínica: LLM com fine-tuning,
+recuperação de protocolos internos via LangChain e fluxo de decisão
+automatizado com LangGraph.
 
 > ⚠️ **Aviso importante**
-> Todos os dados deste repositório são **sintéticos** e foram gerados para fins acadêmicos.
-> Protocolos, códigos internos (`PROT-0XX`, `LAUDO-XXX-XX`), doses e condutas são **fictícios**,
-> não foram validados por profissionais de saúde e **não devem ser utilizados para decisões clínicas reais**.
+> Todos os dados deste repositório são **sintéticos** e foram gerados para fins
+> acadêmicos. Protocolos, códigos internos (`PROT-0XX`, `LAUDO-XXX-XX`), doses,
+> prazos e pacientes são **fictícios**, não foram validados por profissionais de
+> saúde e **não devem ser utilizados para decisões clínicas reais**.
 
 ---
 
-## Sobre o projeto
+## Índice
 
-O desafio propõe a criação de um assistente médico treinado com dados próprios de um hospital, capaz de auxiliar em condutas clínicas, responder dúvidas de médicos e sugerir procedimentos com base em protocolos internos — com fluxos de decisão automatizados e seguros coordenados via LangChain e LangGraph.
+- [O que o sistema faz](#o-que-o-sistema-faz)
+- [Arquitetura](#arquitetura)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Como executar](#como-executar)
+- [O modelo treinado](#o-modelo-treinado)
+- [As bases de dados](#as-bases-de-dados)
+- [Segurança e validação](#segurança-e-validação)
+- [Resultados](#resultados)
+- [Decisões de projeto](#decisões-de-projeto)
+- [Limitações](#limitações)
+- [Requisitos do desafio](#requisitos-do-desafio)
 
-O sistema combina três camadas complementares:
+---
 
-| Camada | O que faz | Onde vive o conhecimento |
+## O que o sistema faz
+
+Recebe uma pergunta clínica, opcionalmente vinculada a um paciente da base de
+prontuários, e devolve uma resposta que:
+
+- recupera os protocolos internos pertinentes ao caso
+- contextualiza com os dados do paciente (sinais vitais, exames, antecedentes)
+- roteia para um de três desfechos, conforme o estado clínico
+- cita as fontes efetivamente consultadas
+- exige validação humana antes de qualquer conduta
+- registra tudo em log auditável
+
+### Os três desfechos
+
+| Desfecho | Quando ocorre | O que o assistente faz |
 |---|---|---|
-| **Modelo fine-tuned** | Aprende o *formato* e o *comportamento* esperados: citar fonte, exigir validação humana, emitir rótulo de decisão | Nos pesos (adapters LoRA) |
-| **RAG (LangChain)** | Recupera o conteúdo factual dos protocolos no momento da pergunta | Base vetorial de documentos |
-| **Fluxo (LangGraph)** | Roteia a decisão entre verificar exames, sugerir conduta ou emitir alerta | Grafo de estados |
+| `VERIFICAR_EXAMES` | Há exames sem resultado | Lista os pendentes e recusa conduta definitiva |
+| `EMITIR_ALERTA` | Há sinal de gravidade | Sinaliza urgência e lista os achados de alarme |
+| `SUGERIR_CONDUTA` | Dados suficientes, sem gravidade | Descreve o que o protocolo prevê, com ressalva |
 
-Essa separação é intencional: com fine-tuning LoRA sobre um volume moderado de exemplos, o modelo aprende comportamento, não conhecimento clínico. O conteúdo factual vem do RAG.
+---
+
+## Arquitetura
+
+```
+START
+  ↓
+carregar_paciente        consulta a base estruturada de prontuários
+  ↓
+recuperar_protocolos     RAG sobre os protocolos internos (LangChain + Chroma)
+  ↓
+consultar_modelo         LLM fine-tuned gera o texto da resposta
+  ↓
+decidir_desfecho         regra determinística sobre o prontuário
+  ↓
+[roteamento condicional]
+  ├──> verificar_exames
+  ├──> sugerir_conduta
+  └──> emitir_alerta
+          ↓
+       finalizar         guardrail + citação de fontes
+          ↓
+        END
+```
+
+![Diagrama do grafo](docs/resultados/diagrama_grafo.png)
+
+O diagrama é gerado a partir do grafo compilado
+(`grafo.get_graph().draw_mermaid_png()`), não desenhado à parte — logo não
+divergem.
+
+### As três camadas de conhecimento
+
+| Camada | O que garante | Onde vive |
+|---|---|---|
+| Modelo fine-tuned | Formato e comportamento: citar fonte, exigir validação | Adapters LoRA |
+| RAG (LangChain) | Conteúdo factual dos protocolos | Vector store Chroma |
+| Grafo (LangGraph) | Decisão de fluxo auditável | Regra determinística em código |
+
+A separação é intencional. Com LoRA sobre um volume moderado de exemplos, o
+modelo aprende **comportamento**, não conhecimento clínico — o conteúdo factual
+vem do RAG. E a decisão de fluxo não é delegada ao modelo: veja
+[Decisões de projeto](#decisões-de-projeto).
 
 ---
 
@@ -29,102 +98,147 @@ Essa separação é intencional: com fine-tuning LoRA sobre um volume moderado d
 
 ```
 TECH-CHALLENGE-3/
-├── data/
-│   └── dataset_medico.jsonl        # dataset sintético de fine-tuning (95 exemplos)
-├── notebooks/
-│   ├── 01_gerar_dataset.ipynb      # pipeline de geração, anonimização e curadoria
-│   └── 02_finetuning.ipynb         # fine-tuning QLoRA
-├── docs/
-│   └── resultados/
-│       ├── curva_loss.png          # curva de perda do treino
-│       └── avaliacao_modelo.json   # respostas e métricas do conjunto de avaliação
-└── README.md
-```
-
-Estrutura prevista conforme o projeto avança:
-
-```
-├── data/
-│   ├── protocolos/                 # base de conhecimento do RAG
-│   └── prontuarios.json            # base estruturada consultada pelo LangGraph
 ├── src/
-│   ├── llm/                        # carregamento do modelo fine-tuned
-│   ├── rag/                        # pipeline LangChain
-│   ├── graph/                      # fluxo LangGraph
-│   └── logging/                    # auditoria e rastreabilidade
-├── logs/
-└── docs/
-    ├── relatorio_tecnico.md
-    └── diagrama_fluxo.png
+│   ├── config.py                caminhos, modelo, parâmetros de RAG e decisão
+│   ├── rag/
+│   │   ├── documentos.py        carrega .md com frontmatter, faz chunking
+│   │   ├── prontuarios.py       consulta estruturada + detecção de gravidade
+│   │   └── vectorstore.py       indexação Chroma, retriever com escopo
+│   ├── llm/
+│   │   └── modelo.py            carrega Qwen+LoRA, gera, pós-processa
+│   ├── graph/
+│   │   ├── estado.py            EstadoClinico (TypedDict)
+│   │   ├── nos.py               nós do grafo + regra de decisão
+│   │   └── fluxo.py             montagem do grafo + AssistenteClinico
+│   └── auditoria/
+│       └── registro.py          logging estruturado em JSONL
+├── data/
+│   ├── protocolos/              14 protocolos internos (base do RAG)
+│   ├── prontuarios.json         8 pacientes fictícios
+│   ├── dataset_medico.jsonl     95 exemplos de fine-tuning
+│   └── README.md                documentação das bases
+├── notebooks/
+│   ├── 01_gerar_dataset.ipynb   geração e curadoria do dataset
+│   ├── 02_finetuning.ipynb      fine-tuning QLoRA
+│   └── 03_demo_assistente.ipynb demonstração de ponta a ponta
+├── scripts/
+│   └── demo.py                  execução do assistente por linha de comando
+├── docs/
+│   ├── analise_e_limitacoes.md  avaliação crítica da execução
+│   └── resultados/
+│       ├── curva_loss.png       perda do treino
+│       ├── avaliacao_modelo.json métricas do fine-tuning
+│       ├── validacao_rag.md     medição da recuperação
+│       ├── demo.jsonl           log da execução completa
+│       └── diagrama_grafo.png   fluxo do LangGraph
+├── logs/                        registros de auditoria (não versionados)
+├── verificar_ambiente.py        valida o ambiente sem baixar modelo
+└── pyproject.toml
 ```
 
 ---
 
-## Notebooks
+## Como executar
 
-| Notebook | Finalidade | Requisitos | Precisa rodar? |
-|---|---|---|---|
-| `01_gerar_dataset.ipynb` | Geração, anonimização e curadoria do dataset sintético | API key Anthropic, CPU | **Não** — o dataset já está versionado em `data/` |
-| `02_finetuning.ipynb` | Fine-tuning QLoRA do modelo base | GPU (L4 ou T4), conta Hugging Face | **Não** — os adapters já estão publicados |
+### Opção A — Colab com GPU (recomendado)
 
-Ambos os notebooks são **documentação do processo**. Para *usar* o assistente, basta carregar o modelo publicado — ver [Como usar o modelo](#como-usar-o-modelo).
+Abra `notebooks/03_demo_assistente.ipynb` no Google Colab, selecione **GPU T4**
+em Ambiente de execução → Alterar tipo de ambiente, e execute as células em
+ordem.
 
----
+O notebook clona este repositório, instala as dependências, indexa os
+protocolos, carrega o modelo em 4-bit e roda os 8 pacientes. Cada consulta leva
+cerca de 30 segundos.
 
-## O dataset
+Nenhum token é necessário: o modelo base e os adapters são públicos.
 
-`data/dataset_medico.jsonl` — 95 exemplos no formato de instrução (`instruction` / `input` / `output` / `categoria`).
+### Opção B — Local
 
-### Distribuição por categoria
+```bash
+git clone https://github.com/mvaraujo1977/TECH-CHALLENGE-3.git
+cd TECH-CHALLENGE-3
 
-| Categoria | Exemplos | Conteúdo |
-|---|---:|---|
-| `cenarios_clinicos` | 25 | Casos com dados de paciente que exigem decisão de roteamento |
-| `protocolos` | 20 | Protocolos clínicos internos (sepse, TEP, AVC, pré-operatório, cetoacidose) |
-| `faq_medicos` | 20 | Dúvidas frequentes sobre condutas e procedimentos internos |
-| `laudos` | 15 | Estrutura de laudos (imagem, laboratorial, anatomopatológico) |
-| `receitas` | 15 | Modelos de receita e regras de prescrição, incluindo controlados |
+uv venv
+uv pip install -e .
 
-### Métricas de qualidade
+# valida o ambiente antes de baixar qualquer modelo
+python verificar_ambiente.py
 
-| Métrica | Resultado |
-|---|---|
-| Citação de fonte | 95/95 (100%) |
-| Guardrail de validação humana | 57/95 (60%) — **100% nos casos que sugerem conduta** |
-| Exemplos truncados | 0 |
-| Instruções duplicadas | 0 |
-| Resíduos de anonimização | 0 |
-| Tamanho das respostas | 318–687 caracteres (mediana: 485) |
-
-A cobertura de guardrail é **condicional por design**: a ressalva de validação humana aparece onde há sugestão de conduta clínica, e é omitida em perguntas puramente informativas (estrutura de um laudo, campos obrigatórios de uma receita). Um guardrail presente em 100% das respostas seria ruído — o objetivo é que o modelo aprenda *quando* a validação é necessária, não a repetir a frase por reflexo.
-
-### Distribuição dos desfechos (cenários clínicos)
-
-| Desfecho | Exemplos | Quando ocorre |
-|---|---:|---|
-| `VERIFICAR_EXAMES` | 9 | Faltam resultados essenciais; o assistente recusa conduta definitiva |
-| `EMITIR_ALERTA` | 8 | Há sinal de gravidade; sinaliza urgência à equipe |
-| `SUGERIR_CONDUTA` | 8 | Dados suficientes; descreve o que o protocolo prevê, com ressalva |
-
-Todos os 25 cenários iniciam com o rótulo padronizado `DESFECHO: <RÓTULO>`, o que torna o roteamento no LangGraph determinístico.
-
----
-
-## Preparação dos dados
-
-O pipeline em `01_gerar_dataset.ipynb` executa nesta ordem, que não deve ser alterada:
-
-```
-gerar → deduplicar → normalizar desfecho → limpar meta-vazamento → ANONIMIZAR → verificar → salvar
+# executa o assistente
+python scripts/demo.py
 ```
 
-**Geração.** Lotes de 5 exemplos por chamada, com prompt de regras explícitas. Lotes pequenos eliminam truncamento por limite de tokens — o problema que inviabilizava lotes maiores.
+Com GPU NVIDIA, instale também o extra de quantização:
 
-**Preprocessing.** Parsing de JSONL com descarte de linhas malformadas, deduplicação por instrução, remoção de respostas truncadas, normalização do rótulo de desfecho e limpeza de meta-instruções vazadas para dentro do conteúdo.
+```bash
+uv pip install -e ".[gpu]"
+```
 
-**Anonimização em duas camadas.** Restrição no prompt de geração e regex de pós-processamento cobrindo CPF, CNS, datas, iniciais (`R.S.`, `R.M.T.S.`) e nomes próprios, com verificação automática de resíduos.
+**Sem GPU**, o assistente roda mas fica lento — cerca de 500 segundos por
+consulta com o modelo de 3B em CPU, contra 30 na T4. Para reduzir o consumo de
+memória de ~12 GB para ~6 GB, passe `dtype_cpu="bfloat16"`:
 
-**Curadoria.** Revisão humana por amostragem em cada categoria, mais métricas automáticas de cobertura de guardrail e citação de fonte.
+```python
+from src.graph.fluxo import criar_assistente
+
+assistente = criar_assistente(dtype_cpu="bfloat16", max_new_tokens=200)
+resposta, registro = assistente.consultar(
+    "Qual a conduta indicada?", id_paciente="PAC-001"
+)
+print(resposta)
+print(registro.resumo())
+```
+
+### Uso programático
+
+```python
+from src.graph.fluxo import criar_assistente
+
+assistente = criar_assistente()
+
+# consulta vinculada a um paciente
+resposta, registro = assistente.consultar(
+    "Qual a conduta indicada para este paciente?",
+    id_paciente="PAC-008",
+)
+
+print(resposta)
+print(f"Desfecho: {registro.desfecho} ({registro.motivo_desfecho})")
+print(f"Fontes: {[f['codigo'] for f in registro.fontes]}")
+print(f"Caminho: {' → '.join(registro.caminho_no_grafo)}")
+
+# consulta geral, sem paciente
+resposta, _ = assistente.consultar(
+    "Quais exames são obrigatórios no pré-operatório eletivo?"
+)
+```
+
+### Componentes isolados
+
+Cada camada funciona sozinha, o que permite testar sem carregar o LLM:
+
+```python
+# recuperação, sem modelo de linguagem
+from src.rag.vectorstore import criar_retriever, indexar
+from src.rag import prontuarios as pr
+
+retriever = criar_retriever(indexar())
+paciente = pr.buscar_paciente("PAC-007")
+
+docs = retriever.invoke(
+    paciente["admissao"]["queixa"],
+    codigos=paciente["protocolos_relacionados"],
+)
+
+# regra de decisão, sem grafo
+from src.graph.nos import decidir_desfecho
+
+decidir_desfecho({
+    "paciente": paciente,
+    "sinais_gravidade": pr.sinais_de_gravidade(paciente),
+    "exames_pendentes": pr.exames_pendentes(paciente),
+})
+```
 
 ---
 
@@ -132,242 +246,298 @@ gerar → deduplicar → normalizar desfecho → limpar meta-vazamento → ANONI
 
 | | |
 |---|---|
-| **Modelo base** | [`Qwen/Qwen2.5-3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) |
+| **Base** | [`Qwen/Qwen2.5-3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) |
 | **Adapters LoRA** | [`mvaraujo1977/assistente-medico-lora`](https://huggingface.co/mvaraujo1977/assistente-medico-lora) (público) |
-| **Técnica** | QLoRA — quantização 4-bit (NF4) + LoRA |
-| **Configuração LoRA** | `r=16`, `alpha=32`, `dropout=0.05` |
-| **Módulos treinados** | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` |
-| **Épocas** | 4 |
-| **Learning rate** | 2e-4, scheduler cosine |
-| **Batch efetivo** | 8 (batch 2 × gradient accumulation 4) |
-| **Split** | 81 treino / 14 avaliação, estratificado por categoria |
+| **Técnica** | QLoRA — quantização 4-bit NF4 + LoRA |
+| **LoRA** | `r=16`, `alpha=32`, `dropout=0.05` |
+| **Módulos** | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` |
+| **Treino** | 4 épocas, lr 2e-4 cosine, batch efetivo 8 |
+| **Dados** | 81 treino / 14 avaliação, estratificado por categoria |
+
+Detalhes do processo, curva de perda e avaliação em
+`notebooks/02_finetuning.ipynb` e `docs/resultados/`.
 
 ### Por que Qwen2.5-3B e não LLaMA
 
-O enunciado sugere LLaMA ou Falcon, mas admite outros modelos. A escolha pelo Qwen2.5-3B-Instruct foi motivada por:
+O enunciado sugere LLaMA ou Falcon, mas admite outros modelos. A escolha foi
+motivada por:
 
-- **Sem gate de licença.** O `meta-llama/Llama-3.2-3B-Instruct` exige aprovação individual da Meta — a tentativa de uso retornou `403 GatedRepoError`. Isso quebraria a reprodutibilidade do projeto para os demais integrantes do grupo e para a banca avaliadora.
-- **Mesma faixa de parâmetros** (3B), cabendo em GPU L4/T4 com quantização 4-bit.
-- **Template de chat bem definido**, aplicado via `tokenizer.apply_chat_template()`.
+- **Sem gate de licença.** O `meta-llama/Llama-3.2-3B-Instruct` exige aprovação
+  individual da Meta — a tentativa retornou `403 GatedRepoError`. Isso quebraria
+  a reprodutibilidade para o grupo e para a banca.
+- **Mesma faixa de parâmetros** (3B), cabendo em T4/L4 com quantização 4-bit.
+- **Template de chat bem definido**, aplicado via `apply_chat_template()`.
 
-A troca é de uma linha: basta alterar `MODEL_NAME` no notebook `02_finetuning.ipynb`.
-
-### Split estratificado
-
-A divisão treino/avaliação é estratificada **por categoria**, não aleatória. Com 95 exemplos, um split simples poderia deixar o conjunto de avaliação sem nenhum cenário clínico — justamente o comportamento mais importante de medir.
-
-| Categoria | Treino | Avaliação |
-|---|---:|---:|
-| `cenarios_clinicos` | 21 | 4 |
-| `protocolos` | 17 | 3 |
-| `faq_medicos` | 17 | 3 |
-| `laudos` | 13 | 2 |
-| `receitas` | 13 | 2 |
+Trocar exige alterar uma linha (`MODELO_BASE` em `src/config.py`).
 
 ---
 
-## Avaliação do modelo
+## As bases de dados
 
-Curva de perda: [`docs/resultados/curva_loss.png`](docs/resultados/curva_loss.png)
-Respostas completas do conjunto de avaliação: [`docs/resultados/avaliacao_modelo.json`](docs/resultados/avaliacao_modelo.json)
+Três bases com papéis distintos — a confusão entre elas é comum, então vale
+separar:
 
-### Metodologia
+| Base | Papel | Consumida por |
+|---|---|---|
+| `dataset_medico.jsonl` | Treino do modelo (comportamento e formato) | Fine-tuning, concluído |
+| `protocolos/` | Conhecimento factual recuperável | RAG, em tempo de execução |
+| `prontuarios.json` | Dados do paciente | Nós do grafo, em tempo de execução |
 
-A `eval_loss` indica se o modelo prevê tokens melhor, mas não se aprendeu **o comportamento desejado**. Por isso, a avaliação mede diretamente os três comportamentos-alvo sobre o conjunto de avaliação, comparando as respostas do modelo **antes** e **depois** do fine-tuning:
+Documentação detalhada em [`data/README.md`](data/README.md).
 
-| Comportamento | Como é verificado |
+### Protocolos
+
+14 documentos markdown com frontmatter YAML (`codigo`, `titulo`, `versao`,
+`setor`, `revisao`). O frontmatter alimenta os metadados dos chunks no vector
+store, permitindo citar a fonte exata na resposta.
+
+Cobrem sepse, síndrome coronariana aguda, AVC, pré-operatório,
+tromboembolismo, cetoacidose, tromboprofilaxia, controle glicêmico, crise
+hipertensiva, prescrição de controlados, isolamento e anafilaxia, mais dois
+modelos de laudo.
+
+### Prontuários
+
+8 pacientes com identificação, admissão, antecedentes, alergias, medicamentos,
+sinais vitais e exames com status. Construídos para exercitar os três
+desfechos do grafo.
+
+O campo `protocolos_relacionados` de cada paciente é usado para restringir a
+recuperação — veja [Decisões de projeto](#decisões-de-projeto).
+
+---
+
+## Segurança e validação
+
+O requisito 3 do desafio pede três coisas. Como cada uma foi atendida:
+
+### Limites de atuação
+
+O assistente nunca prescreve diretamente. A ressalva de validação humana é
+garantida em **duas camadas**:
+
+1. **Fine-tuning** — o modelo foi treinado para fechar respostas de conduta com
+   a ressalva. Na execução medida, fez isso espontaneamente em 7 de 8 casos.
+2. **Código** — `garantir_guardrail()` insere a ressalva se ela estiver ausente.
+   O registro de auditoria marca quando a inserção foi necessária, o que mede
+   quantas vezes o modelo falhou sozinho.
+
+A verificação é feita **sobre o texto do modelo, isolado do bloco de ações**.
+Verificar o texto montado produzia falso positivo: a ação "Acionar o médico
+responsável" contém as mesmas palavras da ressalva, e a resposta saía sem o
+aviso.
+
+### Logging para auditoria
+
+Cada consulta grava um registro em JSONL, append-only, com:
+
+```json
+{
+  "id": "2b111fb0",
+  "momento": "2026-09-10T18:21:03+00:00",
+  "pergunta": "Qual a conduta indicada para este paciente?",
+  "id_paciente": "PAC-001",
+  "fontes": [{"codigo": "PROT-007", "titulo": "...", "versao": "4", "chunks": [1, 2]}],
+  "trechos_recuperados": 4,
+  "desfecho": "VERIFICAR_EXAMES",
+  "motivo_desfecho": "2 exame(s) sem resultado disponível",
+  "sinais_gravidade": [],
+  "exames_pendentes": ["D-dímero", "Angiotomografia de tórax"],
+  "desfecho_do_modelo": null,
+  "concorda_com_modelo": null,
+  "guardrail_adicionado": false,
+  "caminho_no_grafo": ["carregar_paciente", "recuperar_protocolos", "..."],
+  "duracao_s": 34.2,
+  "modelo": "Qwen/Qwen2.5-3B-Instruct em cuda | adapter ... | 4-bit"
+}
+```
+
+`Auditoria.estatisticas()` agrega as métricas para relatório.
+
+### Explainability
+
+A citação de fonte vem dos **documentos efetivamente recuperados pelo
+retriever**, não do código que o modelo escreveu no texto.
+
+Isso importa porque os códigos que o modelo produz não são confiáveis: durante
+a geração do dataset, o mesmo código foi associado a temas diferentes em lotes
+distintos (`PROT-012` aparece como TEP, checklist de alta e controle glicêmico).
+O fine-tuning ensinou o *formato* de citar uma fonte, não um mapeamento
+código→conteúdo.
+
+Cada fonte citada traz código, título, versão e os índices de chunk usados —
+rastreável até o arquivo e a seção.
+
+---
+
+## Resultados
+
+Execução dos 8 pacientes em GPU T4, modelo em 4-bit.
+
+| Métrica | Resultado |
 |---|---|
-| Cita fonte | Presença de padrão `PROT-`, `LAUDO-`, `RX-` ou `FARM-` na resposta |
-| Aplica guardrail | Presença de alguma das 12 formulações de ressalva de validação humana |
-| Emite desfecho | Resposta a cenário clínico inicia com `DESFECHO: <RÓTULO>` |
+| Citação de fonte na resposta | 8/8 |
+| Fonte recuperada pertinente ao caso | 8/8 |
+| Ressalva de validação na resposta final | 8/8 |
+| — espontânea do modelo | 7/8 |
+| — inserida por código | 1/8 |
+| Rótulo de decisão válido emitido pelo modelo | 2/8 |
+| — clinicamente correto | 0/8 |
+| Registros de auditoria completos | 8/8 |
 
-### Resultados
+Tempo médio: ~30 s por consulta em T4.
 
-<!-- PREENCHER com os números da execução do notebook 02 -->
+### Recuperação
 
-| Métrica | Antes do fine-tuning | Depois do fine-tuning |
-|---|---:|---:|
-| Cita fonte | — | — |
-| Aplica guardrail | — | — |
-| Emite `DESFECHO:` | — | — |
+Medição da camada de RAG isolada, sem o LLM. Detalhes em
+`docs/resultados/validacao_rag.md`.
 
-**Perda de avaliação:** `eval_loss` inicial — → final —
+| | Filtro por similaridade | Escopo curado |
+|---|---|---|
+| Acertos | 3/11 | 11/11 |
+| Protocolo de outra condição | 5 | 0 |
+| Faltantes | 8 | 0 |
+
+**A análise crítica completa, incluindo os erros clínicos encontrados nas
+respostas geradas, está em
+[`docs/analise_e_limitacoes.md`](docs/analise_e_limitacoes.md).** É leitura
+necessária para interpretar os números acima — o formato está correto em 8/8,
+mas o conteúdo clínico apresenta erros em 3/8.
 
 ---
 
-## Como usar o modelo
+## Decisões de projeto
 
-### Instalação
+Duas escolhas de arquitetura foram tomadas a partir de medição, não de
+preferência. Ambas movem responsabilidade do LLM para código determinístico.
 
-```bash
-pip install transformers peft torch accelerate bitsandbytes
-```
+### 1. O roteamento não é delegado ao modelo
 
-Ou, com `uv`:
+**Medição.** O modelo falhou em emitir um rótulo de decisão utilizável em 8 de
+8 casos: rótulos inventados (`VERIFICAR`, `VERIFICAR CONTA`, `AVALIAR`),
+ausência de rótulo, ou rótulo válido com classificação clinicamente errada. Em
+CPU com bfloat16, produziu `SUGERIR CONDUÇÃO` — corrupção diferente, mesma taxa
+de acerto.
 
-```bash
-uv add transformers peft torch accelerate bitsandbytes
-```
-
-### Carregar o modelo
-
-```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import PeftModel
-
-BASE = "Qwen/Qwen2.5-3B-Instruct"
-ADAPTER = "mvaraujo1977/assistente-medico-lora"
-
-base = AutoModelForCausalLM.from_pretrained(BASE, device_map="auto")
-model = PeftModel.from_pretrained(base, ADAPTER)
-tokenizer = AutoTokenizer.from_pretrained(ADAPTER)
-model.eval()
-```
-
-Nenhum token do Hugging Face é necessário — tanto o modelo base quanto os adapters são públicos.
-
-### Fazer uma pergunta
-
-O modelo foi treinado com um `SYSTEM_PROMPT` específico. Usar o mesmo prompt na inferência é importante: ele faz parte do formato aprendido durante o fine-tuning.
-
-```python
-SYSTEM_PROMPT = (
-    "Você é um assistente clínico de apoio à decisão do hospital. "
-    "Baseie-se nos protocolos internos e cite sempre a fonte. "
-    "Nunca prescreva diretamente: toda sugestão de conduta requer validação do médico responsável."
-)
-
-def perguntar(pergunta: str, dados_paciente: str = "", max_new_tokens: int = 300) -> str:
-    conteudo = pergunta
-    if dados_paciente:
-        conteudo += "\n\nDados do paciente:\n" + dados_paciente
-
-    mensagens = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": conteudo},
-    ]
-    prompt = tokenizer.apply_chat_template(mensagens, tokenize=False, add_generation_prompt=True)
-    entradas = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    saida = model.generate(
-        **entradas,
-        max_new_tokens=max_new_tokens,
-        do_sample=False,
-        pad_token_id=tokenizer.eos_token_id,
-    )
-    return tokenizer.decode(
-        saida[0][entradas["input_ids"].shape[1]:], skip_special_tokens=True
-    ).strip()
-```
-
-### Exemplos
-
-Pergunta sobre protocolo:
-
-```python
-print(perguntar("Qual o protocolo interno para suspeita de sepse?"))
-```
-
-Cenário clínico com dados do paciente:
-
-```python
-print(perguntar(
-    "Posso definir conduta para este paciente ou preciso de mais dados?",
-    dados_paciente=(
-        "Paciente de 51 anos, masculino. Dispneia súbita há 2h, dor pleurítica. "
-        "FC 110 bpm, SpO2 93%. Cirurgia ortopédica há 12 dias. "
-        "D-dímero e angiotomografia ainda não realizados."
-    )
-))
-```
-
-Em cenários clínicos, a resposta começa com um rótulo de decisão:
+**Decisão.** `decidir_desfecho()` aplica uma regra explícita sobre o prontuário:
 
 ```
-DESFECHO: VERIFICAR_EXAMES
-...
+sinais de gravidade  → EMITIR_ALERTA
+exames pendentes     → VERIFICAR_EXAMES
+nenhum dos dois      → SUGERIR_CONDUTA
 ```
 
-### Rótulos de desfecho
+Gravidade tem precedência: um paciente instável com exames pendentes precisa de
+alerta imediato, e o nó de alerta lista os pendentes de todo modo.
 
-O modelo emite um destes três rótulos na primeira linha ao receber um cenário clínico. É o que permite o roteamento determinístico no LangGraph.
+**Efeito.** Em 2 dos 8 casos o modelo classificou urgência como rotina — AVC em
+janela terapêutica e cetoacidose grave. A regra corrigiu ambos.
 
-| Rótulo | Quando ocorre |
+O rótulo do modelo continua sendo registrado (`desfecho_do_modelo`) e comparado
+com a decisão (`concorda_com_modelo`), o que mantém a métrica de concordância
+sem dar ao modelo poder de decisão.
+
+### 2. A recuperação usa o escopo curado do prontuário
+
+**Medição.** Filtrar por score de similaridade não separava protocolo pertinente
+de irrelevante. Distribuição em cosseno com `bge-m3`:
+
+| | mediana |
 |---|---|
-| `VERIFICAR_EXAMES` | Faltam resultados essenciais; o assistente recusa conduta definitiva |
-| `SUGERIR_CONDUTA` | Dados suficientes; descreve o que o protocolo prevê, com ressalva de validação |
-| `EMITIR_ALERTA` | Há sinal de gravidade; sinaliza urgência à equipe |
+| Chunks em `protocolos_relacionados` | 0.558 |
+| Chunks fora | 0.550 |
 
-Extração do rótulo:
+Diferença de 0.008. Não existe limiar que separe as classes — o corte atuava
+como filtro de volume, não de pertinência.
 
-```python
-import re
+**Decisão.** Quando o prontuário indica quais protocolos se aplicam, a busca é
+restrita a eles, **sem aplicar corte de relevância**. O corte só vale para busca
+livre, sem paciente vinculado.
 
-def extrair_desfecho(resposta: str) -> str:
-    m = re.match(r'^DESFECHO:\s*(\w+)', resposta.strip())
-    return m.group(1) if m else "SUGERIR_CONDUTA"   # fallback conservador
-```
+**Efeito.** A recuperação passou de 3/11 para 11/11 acertos. Dois chunks
+devolvidos ficam abaixo do corte (0.4202 e 0.4200 no PAC-008) — se o corte
+valesse dentro do escopo, a sepse ficaria sem protocolo.
 
-O fallback aponta para `SUGERIR_CONDUTA`, que sempre carrega o guardrail de validação humana. Se o parsing falhar, o sistema degrada para o caminho que exige revisão médica — nunca para um que a dispense.
+### 3. Detecção de gravidade em três fontes
 
-### Desempenho esperado
+A heurística inicial lia apenas sinais vitais, e deixou passar um IAMCSST
+confirmado (supra de ST em três derivações, troponina 3,8 ng/mL) porque
+pressão, saturação e frequência estavam normais — a gravidade estava no ECG.
 
-| Ambiente | Tempo por resposta |
-|---|---|
-| GPU (L4/T4) | 1–3 segundos |
-| CPU | 10–30 segundos |
+A detecção passou a ler:
 
-Sem GPU, o modelo funciona mas fica lento. Para a demonstração em vídeo, vale testar o ambiente antes ou usar quantização adicional (GGUF via llama.cpp/Ollama).
+- **sinais vitais**, com limiares conservadores
+- **resultados de exames** — achados críticos em texto livre e limiares
+  numéricos (troponina, lactato)
+- **protocolos de urgência** associados ao paciente no prontuário
 
----
-
-## Como reproduzir o treino
-
-Não é necessário para usar o modelo — os adapters já estão publicados. Siga apenas se quiser retreinar.
-
-1. Abra `notebooks/02_finetuning.ipynb` no Google Colab
-2. Configure GPU: **Ambiente de execução → Alterar tipo de ambiente → L4 GPU** (ou T4)
-3. Crie um token de escrita em [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) e cadastre nos Secrets do Colab como `HF_TOKEN`
-4. Ajuste `HUB_REPO` na seção 5 para o seu usuário do Hugging Face
-5. Execute as células em ordem
-
-**Se estiver numa T4**, altere na seção 10: `bf16=True` → `fp16=True`. A T4 não tem suporte nativo a bfloat16.
-
-O treino leva poucos minutos com 81 exemplos.
-
-### Regerar o dataset (opcional)
-
-O dataset já está versionado em `data/dataset_medico.jsonl`. O notebook `01_gerar_dataset.ipynb` documenta como foi produzido e só precisa ser executado para gerar um conjunto novo — nesse caso, é necessária uma API key da Anthropic cadastrada nos Secrets do Colab como `ANTHROPIC_API_KEY`.
+A busca em texto livre verifica negação: o laudo "Sem hemorragia ou isquemia
+aguda" gerava alerta hemorrágico por casamento de substring, invertendo o
+significado do documento. Corrigido e validado em 8 casos de negação.
 
 ---
 
-## Limitações conhecidas
+## Limitações
 
-Declaradas explicitamente por rigor metodológico:
+Resumo. A análise completa está em
+[`docs/analise_e_limitacoes.md`](docs/analise_e_limitacoes.md).
 
-- **Exatidão regulatória não validada.** Protocolos, códigos, listas da Portaria 344 e posologias são inventados e não foram revisados por profissional de saúde.
-- **Anonimização por regex tem casos de borda.** Durante o desenvolvimento, um nome com quatro iniciais escapou de um padrão escrito para três — detectado e corrigido por verificação automática. Em produção, ferramentas dedicadas (ex.: Microsoft Presidio) seriam o caminho.
-- **Volume dimensiona uma demonstração.** 95 exemplos comprovam o pipeline; não produzem um modelo de produção.
-- **O fine-tuning ensina forma, não conteúdo.** Com LoRA neste volume, o modelo aprende a citar fonte, pedir validação e emitir rótulos de decisão. O conhecimento clínico factual vem do RAG.
-- **Conjunto de avaliação pequeno.** 14 exemplos indicam tendência, mas não permitem afirmações de significância estatística.
-- **Avaliação por padrão textual.** As métricas medem presença de padrões (citação de fonte, ressalva, rótulo), não a correção clínica das respostas.
-- **A fronteira entre "informativo" e "conduta" tem zona cinzenta.** Alguns exemplos ficam no limite — descrever a suspensão de medicamentos no pré-operatório é informativo ou conduta? O critério do guardrail não é perfeitamente objetivo.
+- **O modelo erra conteúdo clínico.** Em 3 de 8 respostas: inversão do que o
+  protocolo recuperado diz, posologia inventada, classificação de gravidade
+  equivocada. O erro vem com citação formalmente correta, o que o torna mais
+  difícil de detectar.
+- **Exatidão regulatória não validada.** Protocolos, códigos, listas de
+  controle e posologias são fictícios e não foram revisados por profissional de
+  saúde.
+- **Escala de demonstração.** 8 pacientes, 14 protocolos, 95 exemplos de treino.
+  Indica tendência, não significância estatística.
+- **Curadoria assumida correta.** O escopo de recuperação depende do campo
+  `protocolos_relacionados`, atribuído manualmente. Um erro nele propagaria sem
+  sinal de alerta.
+- **Avaliação por padrão textual.** As métricas verificam presença de padrão por
+  palavra-chave — se a ressalva está no texto, não se é adequada ao conteúdo.
+- **Correção clínica não medida sistematicamente.** Os erros de conteúdo foram
+  encontrados por leitura, não por método. Métrica automática exigiria anotação
+  por profissional de saúde.
+- **Anonimização por regex tem casos de borda.** No dataset de treino, um nome
+  com quatro iniciais escapou de um padrão escrito para três — detectado por
+  verificação automática. Em produção, ferramentas dedicadas (ex.: Presidio)
+  seriam o caminho.
 
 ---
 
 ## Requisitos do desafio
 
-| Requisito | Status |
+| Requisito | Status | Onde |
+|---|---|---|
+| **1. Fine-tuning com dados médicos internos** | ✅ | `notebooks/02_finetuning.ipynb` |
+| — preprocessing, anonimização, curadoria | ✅ | `notebooks/01_gerar_dataset.ipynb` |
+| **2. Assistente médico com LangChain** | ✅ | `src/rag/`, `src/graph/` |
+| — pipeline integrando a LLM customizada | ✅ | `src/llm/modelo.py` |
+| — consulta a base estruturada | ✅ | `src/rag/prontuarios.py` |
+| — contextualização com dados do paciente | ✅ | `src/graph/nos.py` |
+| **3. Segurança e validação** | ✅ | |
+| — limites de atuação | ✅ | `garantir_guardrail()` em `src/llm/modelo.py` |
+| — logging detalhado | ✅ | `src/auditoria/registro.py` |
+| — explainability | ✅ | `citar_fontes()` + metadados dos chunks |
+| **4. Organização do código** | ✅ | `src/` modularizado, este README |
+
+### Entregáveis
+
+| Item | Onde |
 |---|---|
-| 1. Fine-tuning com dados médicos internos | ✅ Concluído |
-| — preprocessing, anonimização e curadoria | ✅ Concluído |
-| — treino do modelo (QLoRA) | ✅ Concluído |
-| 2. Assistente médico com LangChain | ⬜ Pendente |
-| 3. Segurança e validação (limites, logging, explainability) | 🟡 Guardrails no modelo; logging e explainability pendentes |
-| 4. Organização do código e README | 🟡 Em construção |
+| Pipeline de fine-tuning | `notebooks/02_finetuning.ipynb` |
+| Integração com LangChain | `src/rag/`, `src/llm/` |
+| Fluxos do LangGraph | `src/graph/` |
+| Dataset anonimizado | `data/dataset_medico.jsonl` |
+| Diagrama do fluxo | `docs/resultados/diagrama_grafo.png` |
+| Avaliação e análise | `docs/analise_e_limitacoes.md`, `docs/resultados/` |
 
+---
 
+## Equipe
 
+<!-- Preencher com os integrantes do grupo -->
 
 | Nome | RM |
 |---|---|
