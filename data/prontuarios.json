@@ -1,0 +1,482 @@
+{
+  "_aviso": "Dados sintéticos, criados para fins acadêmicos. Nenhum paciente real.",
+  "_gerado_em": "2026-09-07",
+  "pacientes": [
+    {
+      "id": "PAC-001",
+      "identificacao": {
+        "idade": 51,
+        "sexo": "M",
+        "peso_kg": 88,
+        "leito": "PS-12"
+      },
+      "admissao": {
+        "data": "2026-09-05",
+        "queixa": "Dispneia súbita há 2 horas com dor pleurítica em hemitórax direito"
+      },
+      "antecedentes": [
+        "Cirurgia ortopédica de quadril há 12 dias",
+        "Hipertensão arterial",
+        "Tabagismo (20 maços-ano)"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Losartana 50mg 12/12h",
+        "Dipirona 1g SN"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "126/82",
+        "fc_bpm": 110,
+        "fr_irpm": 22,
+        "temp_c": 36.8,
+        "spo2_pct": 93,
+        "glasgow": 15
+      },
+      "exames": [
+        {
+          "nome": "Radiografia de tórax",
+          "status": "resultado_disponivel",
+          "resultado": "Sem alterações pleuroparenquimatosas significativas",
+          "data": "2026-09-05"
+        },
+        {
+          "nome": "Eletrocardiograma",
+          "status": "resultado_disponivel",
+          "resultado": "Taquicardia sinusal, sem alterações isquêmicas",
+          "data": "2026-09-05"
+        },
+        {
+          "nome": "D-dímero",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-05"
+        },
+        {
+          "nome": "Angiotomografia de tórax",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-05"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-007",
+        "PROT-011"
+      ]
+    },
+    {
+      "id": "PAC-002",
+      "identificacao": {
+        "idade": 71,
+        "sexo": "M",
+        "peso_kg": 76,
+        "leito": "PS-03"
+      },
+      "admissao": {
+        "data": "2026-09-07",
+        "queixa": "Dor torácica em aperto há 90 minutos, irradiada para membro superior esquerdo"
+      },
+      "antecedentes": [
+        "Hipertensão arterial",
+        "Diabetes mellitus tipo 2",
+        "Tabagismo ativo"
+      ],
+      "alergias": [
+        "Sulfa"
+      ],
+      "medicamentos_em_uso": [
+        "Metformina 850mg 12/12h",
+        "Enalapril 10mg 12/12h",
+        "AAS 100mg/dia"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "148/92",
+        "fc_bpm": 102,
+        "fr_irpm": 18,
+        "temp_c": 36.4,
+        "spo2_pct": 96,
+        "glasgow": 15
+      },
+      "exames": [
+        {
+          "nome": "Eletrocardiograma",
+          "status": "resultado_disponivel",
+          "resultado": "Supradesnivelamento de ST em DII, DIII e aVF (>2mm)",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Troponina I",
+          "status": "resultado_disponivel",
+          "resultado": "3,8 ng/mL (referência <0,04)",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Hemograma",
+          "status": "resultado_disponivel",
+          "resultado": "Hb 13,8 / Leuco 9.200 / Plaq 245.000",
+          "data": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-002"
+      ]
+    },
+    {
+      "id": "PAC-003",
+      "identificacao": {
+        "idade": 54,
+        "sexo": "F",
+        "peso_kg": 82,
+        "leito": "ENF-207"
+      },
+      "admissao": {
+        "data": "2026-09-06",
+        "queixa": "Pós-operatório imediato de colectomia parcial"
+      },
+      "antecedentes": [
+        "Diabetes mellitus tipo 2",
+        "Obesidade grau I"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Metformina (suspensa no pré-operatório)",
+        "Dipirona 1g 6/6h",
+        "Enoxaparina 40mg/dia"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "122/78",
+        "fc_bpm": 82,
+        "fr_irpm": 16,
+        "temp_c": 36.6,
+        "spo2_pct": 97,
+        "glasgow": 15
+      },
+      "exames": [
+        {
+          "nome": "Glicemia capilar seriada",
+          "status": "resultado_disponivel",
+          "resultado": "08h: 198 mg/dL | 10h: 214 mg/dL | 12h: 231 mg/dL",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Creatinina",
+          "status": "resultado_disponivel",
+          "resultado": "0,9 mg/dL",
+          "data": "2026-09-06"
+        },
+        {
+          "nome": "Hemograma",
+          "status": "resultado_disponivel",
+          "resultado": "Hb 11,4 / Leuco 11.800 / Plaq 310.000",
+          "data": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-012",
+        "PROT-011"
+      ]
+    },
+    {
+      "id": "PAC-004",
+      "identificacao": {
+        "idade": 61,
+        "sexo": "M",
+        "peso_kg": 79,
+        "leito": "PS-01"
+      },
+      "admissao": {
+        "data": "2026-09-07",
+        "queixa": "Fraqueza súbita em dimídio direito e disartria, início há 55 minutos"
+      },
+      "antecedentes": [
+        "Fibrilação atrial",
+        "Hipertensão arterial"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Rivaroxabana 20mg/dia (última dose há 36h, referida)"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "178/102",
+        "fc_bpm": 88,
+        "fr_irpm": 18,
+        "temp_c": 36.5,
+        "spo2_pct": 97,
+        "glasgow": 13
+      },
+      "exames": [
+        {
+          "nome": "NIHSS",
+          "status": "resultado_disponivel",
+          "resultado": "Escore 8",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Tomografia de crânio sem contraste",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-07"
+        },
+        {
+          "nome": "Glicemia capilar",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-07"
+        },
+        {
+          "nome": "Coagulograma",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-003"
+      ]
+    },
+    {
+      "id": "PAC-005",
+      "identificacao": {
+        "idade": 34,
+        "sexo": "M",
+        "peso_kg": 68,
+        "leito": "PS-08"
+      },
+      "admissao": {
+        "data": "2026-09-07",
+        "queixa": "Taquidispneia, náuseas e dor abdominal difusa"
+      },
+      "antecedentes": [
+        "Diabetes mellitus tipo 1",
+        "Má adesão à insulinoterapia"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Insulina glargina (uso irregular)"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "104/64",
+        "fc_bpm": 118,
+        "fr_irpm": 28,
+        "temp_c": 36.9,
+        "spo2_pct": 98,
+        "glasgow": 14
+      },
+      "exames": [
+        {
+          "nome": "Glicemia",
+          "status": "resultado_disponivel",
+          "resultado": "480 mg/dL",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Gasometria arterial",
+          "status": "resultado_disponivel",
+          "resultado": "pH 7,18 / HCO3 10 mEq/L / pCO2 24",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Potássio sérico",
+          "status": "resultado_disponivel",
+          "resultado": "4,1 mEq/L",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Cetonemia",
+          "status": "resultado_disponivel",
+          "resultado": "Positiva, 5,2 mmol/L",
+          "data": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-009"
+      ]
+    },
+    {
+      "id": "PAC-006",
+      "identificacao": {
+        "idade": 67,
+        "sexo": "M",
+        "peso_kg": 91,
+        "leito": "ENF-114"
+      },
+      "admissao": {
+        "data": "2026-09-04",
+        "queixa": "Úlcera plantar com secreção purulenta e febre"
+      },
+      "antecedentes": [
+        "Diabetes mellitus tipo 2",
+        "Neuropatia periférica",
+        "Doença arterial periférica"
+      ],
+      "alergias": [
+        "Penicilina (rash)"
+      ],
+      "medicamentos_em_uso": [
+        "Insulina NPH",
+        "Enoxaparina 40mg/dia"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "130/82",
+        "fc_bpm": 96,
+        "fr_irpm": 20,
+        "temp_c": 38.6,
+        "spo2_pct": 96,
+        "glasgow": 15
+      },
+      "exames": [
+        {
+          "nome": "Hemograma",
+          "status": "resultado_disponivel",
+          "resultado": "Leuco 18.400 com desvio à esquerda",
+          "data": "2026-09-06"
+        },
+        {
+          "nome": "PCR",
+          "status": "resultado_disponivel",
+          "resultado": "112 mg/L",
+          "data": "2026-09-06"
+        },
+        {
+          "nome": "Radiografia do pé",
+          "status": "resultado_disponivel",
+          "resultado": "Sem evidência de osteomielite",
+          "data": "2026-09-05"
+        },
+        {
+          "nome": "Hemocultura",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-06"
+        },
+        {
+          "nome": "Cultura de secreção",
+          "status": "pendente",
+          "resultado": null,
+          "solicitado_em": "2026-09-06"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-001",
+        "PROT-025"
+      ]
+    },
+    {
+      "id": "PAC-007",
+      "identificacao": {
+        "idade": 62,
+        "sexo": "F",
+        "peso_kg": 70,
+        "leito": "PS-05"
+      },
+      "admissao": {
+        "data": "2026-09-07",
+        "queixa": "Cefaleia holocraniana intensa de início súbito há 40 minutos"
+      },
+      "antecedentes": [
+        "Hipertensão arterial de difícil controle"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Anlodipino 10mg/dia",
+        "Hidroclorotiazida 25mg/dia"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "210/130",
+        "fc_bpm": 88,
+        "fr_irpm": 18,
+        "temp_c": 36.3,
+        "spo2_pct": 98,
+        "glasgow": 15
+      },
+      "exames": [
+        {
+          "nome": "Tomografia de crânio sem contraste",
+          "status": "resultado_disponivel",
+          "resultado": "Sem hemorragia ou isquemia aguda",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Creatinina",
+          "status": "resultado_disponivel",
+          "resultado": "1,0 mg/dL",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Eletrólitos",
+          "status": "resultado_disponivel",
+          "resultado": "Na 139 / K 4,2",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Eletrocardiograma",
+          "status": "resultado_disponivel",
+          "resultado": "Sobrecarga ventricular esquerda, sem isquemia aguda",
+          "data": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-019"
+      ]
+    },
+    {
+      "id": "PAC-008",
+      "identificacao": {
+        "idade": 58,
+        "sexo": "F",
+        "peso_kg": 64,
+        "leito": "UTI-04"
+      },
+      "admissao": {
+        "data": "2026-09-03",
+        "queixa": "Pneumonia comunitária com piora clínica"
+      },
+      "antecedentes": [
+        "DPOC",
+        "Ex-tabagista"
+      ],
+      "alergias": [],
+      "medicamentos_em_uso": [
+        "Ceftriaxona 2g/dia",
+        "Azitromicina 500mg/dia",
+        "Enoxaparina 40mg/dia"
+      ],
+      "sinais_vitais": {
+        "pa_mmhg": "88/54",
+        "fc_bpm": 124,
+        "fr_irpm": 30,
+        "temp_c": 38.9,
+        "spo2_pct": 89,
+        "glasgow": 13
+      },
+      "exames": [
+        {
+          "nome": "Lactato sérico",
+          "status": "resultado_disponivel",
+          "resultado": "4,6 mmol/L",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Hemograma",
+          "status": "resultado_disponivel",
+          "resultado": "Leuco 22.100 com desvio / Plaq 98.000",
+          "data": "2026-09-07"
+        },
+        {
+          "nome": "Hemocultura",
+          "status": "coletado_aguardando",
+          "resultado": null,
+          "solicitado_em": "2026-09-07"
+        },
+        {
+          "nome": "Gasometria arterial",
+          "status": "resultado_disponivel",
+          "resultado": "pH 7,29 / pO2 58 / pCO2 48",
+          "data": "2026-09-07"
+        }
+      ],
+      "protocolos_relacionados": [
+        "PROT-001"
+      ]
+    }
+  ]
+}
