@@ -45,6 +45,18 @@ SOBREPOSICAO_CHUNK = 150
 # Quantos trechos recuperar por consulta.
 TOP_K = 4
 
+# Corte mínimo de relevância (0 a 1) para um trecho entrar no contexto.
+#
+# Sem o corte, o Chroma sempre devolve TOP_K documentos — inclusive quando
+# nenhum é pertinente. Em execução real, uma consulta sobre tromboembolismo
+# recuperou o protocolo de anafilaxia, e o modelo (treinado para sempre citar
+# uma fonte) produziu conduta de anafilaxia com citação correta. Contexto
+# irrelevante é pior que contexto vazio.
+#
+# O valor foi calibrado empiricamente com bge-m3; medir de novo ao trocar o
+# modelo de embeddings.
+LIMITE_RELEVANCIA = 0.35
+
 NOME_COLECAO = "protocolos_hospital"
 
 # --- Decisão ----------------------------------------------------------------

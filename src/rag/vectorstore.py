@@ -71,10 +71,68 @@ def indexar(
     )
 
 
-def criar_retriever(vectorstore, top_k: int | None = None):
-    """Retriever de similaridade simples."""
-    return vectorstore.as_retriever(
-        search_kwargs={"k": top_k or config.TOP_K}
+class RetrieverFiltrado:
+    """Retriever com corte por relevância e escopo opcional por protocolo.
+
+    Duas diferenças em relação ao retriever padrão do Chroma:
+
+    1. **Corte por relevância.** O `as_retriever` devolve sempre `k`
+       documentos, mesmo quando nenhum é pertinente. Em execução real, uma
+       consulta sobre tromboembolismo recuperou o protocolo de anafilaxia, e o
+       modelo — treinado para sempre citar uma fonte — produziu conduta de
+       anafilaxia com citação formalmente correta. O risco não é alucinação de
+       código, é conduta errada com fonte legítima.
+
+    2. **Escopo por código.** Quando o prontuário indica quais protocolos se
+       aplicam ao paciente (`protocolos_relacionados`), a busca é restrita a
+       eles. É a informação mais confiável disponível: veio da curadoria do
+       prontuário, não de similaridade de texto.
+    """
+
+    def __init__(self, vectorstore, top_k: int, limite: float):
+        self.vectorstore = vectorstore
+        self.top_k = top_k
+        self.limite = limite
+
+    def invoke(self, consulta: str, codigos: list[str] | None = None):
+        filtro = None
+        if codigos:
+            # Chroma aceita `$in` para restringir a um conjunto de valores.
+            filtro = {"codigo": {"$in": list(codigos)}}
+
+        try:
+            pares = self.vectorstore.similarity_search_with_relevance_scores(
+                consulta, k=self.top_k, filter=filtro
+            )
+        except (TypeError, NotImplementedError):
+            # Backends sem suporte a score de relevância: cai para a busca
+            # simples, sem corte. Perde o filtro, não a funcionalidade.
+            documentos = self.vectorstore.similarity_search(
+                consulta, k=self.top_k, filter=filtro
+            )
+            return documentos
+
+        relevantes = [doc for doc, score in pares if score >= self.limite]
+
+        # Quando nada passa do corte com o escopo restrito, tenta de novo sem
+        # ele: é melhor devolver o protocolo mais próximo do tema do que
+        # devolver nada por causa de um filtro mal ajustado.
+        if not relevantes and codigos:
+            return self.invoke(consulta, codigos=None)
+
+        return relevantes
+
+
+def criar_retriever(
+    vectorstore,
+    top_k: int | None = None,
+    limite: float | None = None,
+):
+    """Retriever com corte de relevância."""
+    return RetrieverFiltrado(
+        vectorstore=vectorstore,
+        top_k=top_k or config.TOP_K,
+        limite=config.LIMITE_RELEVANCIA if limite is None else limite,
     )
 
 

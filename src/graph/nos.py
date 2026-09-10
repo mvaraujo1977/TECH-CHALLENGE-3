@@ -75,10 +75,22 @@ def criar_no_recuperar(retriever) -> Callable[[EstadoClinico], dict]:
         # ancora a recuperação no tema certo.
         consulta = estado.get("pergunta", "")
         paciente = estado.get("paciente")
+        codigos = None
+
         if paciente:
             consulta = f"{consulta} {paciente['admissao']['queixa']}"
+            # O prontuário indica quais protocolos se aplicam. Restringir a
+            # busca a eles evita o caso observado em execução real: protocolo
+            # de anafilaxia recuperado para suspeita de tromboembolismo.
+            codigos = paciente.get("protocolos_relacionados") or None
 
         try:
+            # O retriever filtrado aceita escopo; um retriever simples, não.
+            if codigos is not None:
+                documentos = retriever.invoke(consulta.strip(), codigos=codigos)
+            else:
+                documentos = retriever.invoke(consulta.strip())
+        except TypeError:
             documentos = retriever.invoke(consulta.strip())
         except Exception as erro:  # noqa: BLE001
             return {
@@ -93,6 +105,7 @@ def criar_no_recuperar(retriever) -> Callable[[EstadoClinico], dict]:
             "contexto": formatar_contexto(documentos),
             "fontes": extrair_fontes(documentos),
             "trechos_recuperados": len(documentos),
+            "escopo_protocolos": codigos or [],
             "caminho": caminho,
         }
 
@@ -103,6 +116,10 @@ def criar_no_consultar(gerar: Callable[..., str]) -> Callable[[EstadoClinico], d
     """Fábrica do nó que consulta o modelo.
 
     `gerar` é injetado para permitir teste com uma função determinística.
+
+    O rótulo emitido pelo modelo é registrado, mas **não decide o roteamento**
+    — ver `decidir_desfecho`. Guardá-lo permite medir a concordância entre a
+    classificação do LLM e a decisão determinística.
     """
 
     def consultar_modelo(estado: EstadoClinico) -> dict:
@@ -118,59 +135,92 @@ def criar_no_consultar(gerar: Callable[..., str]) -> Callable[[EstadoClinico], d
         except Exception as erro:  # noqa: BLE001
             return {
                 "resposta_bruta": "",
-                "desfecho": config.DESFECHO_PADRAO,
-                "desfecho_do_modelo": False,
+                "desfecho_do_modelo": None,
                 "erro": f"Falha na geração: {erro}",
                 "caminho": caminho,
             }
 
-        desfecho_lido = m.extrair_desfecho(resposta)
-        veio_do_modelo = resposta.strip().upper().startswith("DESFECHO:")
-
         return {
             "resposta_bruta": resposta,
-            "desfecho": desfecho_lido,
-            "desfecho_do_modelo": veio_do_modelo,
+            "desfecho_do_modelo": m.extrair_desfecho_bruto(resposta),
             "caminho": caminho,
         }
 
     return consultar_modelo
 
 
+def decidir_desfecho(estado: EstadoClinico) -> dict:
+    """Determina o desfecho a partir dos dados estruturados do prontuário.
+
+    Esta decisão é **deliberadamente determinística**, e não delegada ao LLM.
+
+    Motivo: em execução real, o modelo fine-tuned falhou em emitir um rótulo
+    válido em 2 de 2 casos testados — produziu `SUGERIR CONDUÇÃO` em um e
+    nenhum rótulo no outro. Roteamento clínico não pode depender de o modelo
+    acertar um formato de texto.
+
+    A informação necessária já está estruturada no prontuário, então a regra é
+    explícita e auditável:
+
+        exames pendentes    → VERIFICAR_EXAMES   (falta informação)
+        sinais de gravidade → EMITIR_ALERTA      (urgência)
+        nenhum dos dois     → SUGERIR_CONDUTA    (dados suficientes)
+
+    Precedência entre os dois primeiros: gravidade vence. Um paciente instável
+    com exames pendentes precisa de alerta imediato, não de espera por
+    resultado — o nó de alerta lista os pendentes de todo modo.
+
+    O rótulo do LLM continua registrado em `desfecho_do_modelo`, para medir
+    concordância, mas não interfere no roteamento.
+    """
+    caminho = [*estado.get("caminho", []), "decidir_desfecho"]
+
+    gravidade = estado.get("sinais_gravidade") or []
+    pendentes = estado.get("exames_pendentes") or []
+
+    if gravidade:
+        desfecho = "EMITIR_ALERTA"
+        motivo = f"{len(gravidade)} sinal(is) de gravidade nos sinais vitais"
+    elif pendentes:
+        desfecho = "VERIFICAR_EXAMES"
+        motivo = f"{len(pendentes)} exame(s) sem resultado disponível"
+    else:
+        desfecho = "SUGERIR_CONDUTA"
+        motivo = "sem sinais de gravidade e sem exames pendentes"
+
+    # Sem paciente identificado, a pergunta é consulta geral a protocolo: não
+    # há dados estruturados para decidir, e a resposta é informativa.
+    if not estado.get("paciente"):
+        desfecho = "SUGERIR_CONDUTA"
+        motivo = "consulta sem paciente identificado"
+
+    rotulo_modelo = estado.get("desfecho_do_modelo")
+
+    return {
+        "desfecho": desfecho,
+        "motivo_desfecho": motivo,
+        "concorda_com_modelo": (
+            None if rotulo_modelo is None else rotulo_modelo == desfecho
+        ),
+        "caminho": caminho,
+    }
+
+
 # --- Roteamento -------------------------------------------------------------
 
 def rotear(estado: EstadoClinico) -> str:
-    """Decide qual nó de decisão executa.
+    """Encaminha para o nó correspondente ao desfecho já decidido.
 
-    Três camadas, nesta ordem de precedência:
-
-    1. **Erro** → sugerir_conduta, que sempre carrega a ressalva de validação.
-    2. **Sinais de gravidade detectados por código** → emitir_alerta, mesmo que
-       o modelo tenha classificado como rotineiro. É um override de segurança:
-       na dúvida entre "grave" e "não grave", escalar é o erro mais barato.
-    3. **Rótulo do modelo** → o desfecho que ele emitiu.
-
-    A camada 2 é o ponto importante do ponto de vista de segurança. Ela não
-    confia na classificação do LLM para casos com sinais vitais alterados.
+    Função de despacho puro: `decidir_desfecho` fez a análise, aqui só se
+    traduz o rótulo em nome de nó. Manter as duas separadas deixa a regra
+    clínica testável sem exercitar o grafo.
     """
-    if estado.get("erro"):
-        return "sugerir_conduta"
-
-    desfecho = estado.get("desfecho", config.DESFECHO_PADRAO)
-    gravidade = estado.get("sinais_gravidade") or []
-
-    # Override: gravidade objetiva prevalece sobre classificação branda.
-    # Não sobrepõe VERIFICAR_EXAMES — se faltam dados, verificar continua
-    # sendo a resposta correta, e o alerta é registrado à parte.
-    if gravidade and desfecho == "SUGERIR_CONDUTA":
-        return "emitir_alerta"
-
     mapa = {
         "VERIFICAR_EXAMES": "verificar_exames",
         "SUGERIR_CONDUTA": "sugerir_conduta",
         "EMITIR_ALERTA": "emitir_alerta",
     }
-    return mapa.get(desfecho, "sugerir_conduta")
+    return mapa.get(estado.get("desfecho", ""), "sugerir_conduta")
 
 
 # --- Os três nós de decisão -------------------------------------------------

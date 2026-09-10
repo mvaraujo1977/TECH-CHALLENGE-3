@@ -26,11 +26,16 @@ class EstadoClinico(TypedDict, total=False):
     contexto: str                # trechos concatenados para o prompt
     fontes: list[dict]           # metadados para citação
     trechos_recuperados: int
+    escopo_protocolos: list[str] # códigos a que a busca foi restrita, se houve
 
     # --- Preenchido por consultar_modelo ---
     resposta_bruta: str
-    desfecho: str
-    desfecho_do_modelo: bool     # False quando veio de fallback ou override
+    desfecho_do_modelo: str | None   # rótulo que o LLM emitiu; None se inválido
+
+    # --- Preenchido por decidir_desfecho ---
+    desfecho: str                    # decisão determinística, a que vale
+    motivo_desfecho: str             # regra que produziu a decisão
+    concorda_com_modelo: bool | None # None quando o LLM não emitiu rótulo
 
     # --- Preenchido pelos nós de decisão ---
     acoes: list[str]             # o que o nó determinou que deve acontecer

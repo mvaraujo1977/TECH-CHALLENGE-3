@@ -8,7 +8,9 @@ Fluxo:
       ↓
     recuperar_protocolos     (RAG)
       ↓
-    consultar_modelo         (LLM fine-tuned)
+    consultar_modelo         (LLM fine-tuned — gera o texto)
+      ↓
+    decidir_desfecho         (regra determinística sobre o prontuário)
       ↓
     [roteamento condicional]
       ├──> verificar_exames
@@ -45,6 +47,7 @@ def construir_grafo(retriever, gerar: Callable[..., str]):
     grafo.add_node("carregar_paciente", nos.carregar_paciente)
     grafo.add_node("recuperar_protocolos", nos.criar_no_recuperar(retriever))
     grafo.add_node("consultar_modelo", nos.criar_no_consultar(gerar))
+    grafo.add_node("decidir_desfecho", nos.decidir_desfecho)
 
     grafo.add_node("verificar_exames", nos.verificar_exames)
     grafo.add_node("sugerir_conduta", nos.sugerir_conduta)
@@ -56,8 +59,10 @@ def construir_grafo(retriever, gerar: Callable[..., str]):
     grafo.add_edge("carregar_paciente", "recuperar_protocolos")
     grafo.add_edge("recuperar_protocolos", "consultar_modelo")
 
+    grafo.add_edge("consultar_modelo", "decidir_desfecho")
+
     grafo.add_conditional_edges(
-        "consultar_modelo",
+        "decidir_desfecho",
         nos.rotear,
         {
             "verificar_exames": "verificar_exames",
@@ -115,7 +120,9 @@ class AssistenteClinico:
             fontes=final.get("fontes") or [],
             trechos_recuperados=final.get("trechos_recuperados", 0),
             desfecho=final.get("desfecho", ""),
-            desfecho_do_modelo=final.get("desfecho_do_modelo", True),
+            motivo_desfecho=final.get("motivo_desfecho", ""),
+            desfecho_do_modelo=final.get("desfecho_do_modelo"),
+            concorda_com_modelo=final.get("concorda_com_modelo"),
             sinais_gravidade=final.get("sinais_gravidade") or [],
             exames_pendentes=[e["nome"] for e in (final.get("exames_pendentes") or [])],
             resposta=final.get("resposta_final", ""),
@@ -144,8 +151,8 @@ def criar_assistente(
     Custosa: baixa o modelo de embeddings e o LLM na primeira execução.
     Para testes, prefira montar o grafo com dublês via `construir_grafo`.
 
-    `dtype_cpu` e `max_new_tokens` são repassados adiante sem interpretação —
-    o primeiro para `carregar_modelo`, o segundo para cada chamada de `gerar`.
+    `dtype_cpu` vai para `carregar_modelo`; `max_new_tokens` é repassado a cada
+    chamada de `gerar`, com fallback para `config.MAX_NEW_TOKENS`.
     """
     from src.llm.modelo import carregar_modelo
     from src.llm.modelo import gerar as gerar_resposta
@@ -161,10 +168,10 @@ def criar_assistente(
         dtype_cpu=dtype_cpu,
     )
 
+    tokens = max_new_tokens or config.MAX_NEW_TOKENS
+
     def gerar(pergunta: str, contexto: str = "") -> str:
-        return gerar_resposta(
-            mc, pergunta, contexto=contexto, max_new_tokens=max_new_tokens
-        )
+        return gerar_resposta(mc, pergunta, contexto=contexto, max_new_tokens=tokens)
 
     return AssistenteClinico(
         retriever=retriever,

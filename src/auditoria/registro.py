@@ -38,11 +38,15 @@ class RegistroConsulta:
     fontes: list[dict] = field(default_factory=list)
     trechos_recuperados: int = 0
 
-    # Decisão
+    # Decisão determinística (a que vale)
     desfecho: str = ""
-    desfecho_do_modelo: bool = True
+    motivo_desfecho: str = ""
     sinais_gravidade: list[str] = field(default_factory=list)
     exames_pendentes: list[str] = field(default_factory=list)
+
+    # Rótulo do LLM — registrado para medir concordância, não decide o fluxo
+    desfecho_do_modelo: str | None = None
+    concorda_com_modelo: bool | None = None
 
     # Saída
     resposta: str = ""
@@ -66,6 +70,10 @@ class RegistroConsulta:
             partes.append("fontes: " + ", ".join(f["codigo"] for f in self.fontes))
         if self.guardrail_adicionado:
             partes.append("guardrail+")
+        if self.desfecho_do_modelo is None:
+            partes.append("LLM sem rótulo")
+        elif self.concorda_com_modelo is False:
+            partes.append(f"LLM discordou ({self.desfecho_do_modelo})")
         if self.duracao_s is not None:
             partes.append(f"{self.duracao_s:.1f}s")
         return " | ".join(partes)
@@ -119,8 +127,13 @@ class Auditoria:
 
         com_fonte = sum(1 for r in registros if r.get("fontes"))
         guardrail_add = sum(1 for r in registros if r.get("guardrail_adicionado"))
-        fallback = sum(1 for r in registros if not r.get("desfecho_do_modelo", True))
         erros = sum(1 for r in registros if r.get("erro"))
+
+        # Concordância entre o rótulo do LLM e a decisão determinística.
+        # `rotulo_valido` mede quantas vezes o modelo emitiu um rótulo
+        # reconhecível; `concordancia` mede, entre esses, quantos coincidiram.
+        rotulo_valido = sum(1 for r in registros if r.get("desfecho_do_modelo"))
+        concordaram = sum(1 for r in registros if r.get("concorda_com_modelo") is True)
 
         duracoes = [r["duracao_s"] for r in registros if r.get("duracao_s")]
 
@@ -129,7 +142,10 @@ class Auditoria:
             "por_desfecho": por_desfecho,
             "com_citacao_de_fonte": f"{com_fonte}/{total}",
             "guardrail_adicionado_por_codigo": f"{guardrail_add}/{total}",
-            "desfecho_por_fallback": f"{fallback}/{total}",
+            "llm_emitiu_rotulo_valido": f"{rotulo_valido}/{total}",
+            "llm_concordou_com_a_regra": (
+                f"{concordaram}/{rotulo_valido}" if rotulo_valido else "n/a"
+            ),
             "erros": erros,
             "duracao_media_s": round(sum(duracoes) / len(duracoes), 2) if duracoes else None,
         }

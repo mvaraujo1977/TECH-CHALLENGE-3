@@ -183,15 +183,27 @@ def gerar(
 
     if contexto:
         conteudo = (
-            "Protocolos internos relevantes:\n\n"
+            "Protocolos internos recuperados:\n\n"
             f"{contexto}\n\n"
             "---\n\n"
-            "Baseie sua resposta nos protocolos acima e cite o código do "
-            "protocolo utilizado.\n\n"
+            "Use APENAS os protocolos acima que se aplicam à condição "
+            "apresentada. Se algum protocolo recuperado tratar de outra "
+            "condição, ignore-o e não o cite. Se nenhum se aplicar, diga isso "
+            "explicitamente em vez de adaptar um protocolo de condição "
+            "diferente.\n\n"
             f"{pergunta}"
         )
     else:
-        conteudo = pergunta
+        # Sem contexto recuperado, o modelo é instruído a não citar protocolo.
+        # O fine-tuning o condicionou a sempre citar uma fonte, e sem esta
+        # instrução ele inventa um código.
+        conteudo = (
+            "Nenhum protocolo interno foi recuperado para esta consulta. "
+            "Responda com base em conhecimento geral, deixando claro que não "
+            "há protocolo institucional aplicável recuperado, e NÃO cite "
+            "códigos de protocolo.\n\n"
+            f"{pergunta}"
+        )
 
     mensagens = [
         {"role": "system", "content": system_prompt},
@@ -227,18 +239,27 @@ _PADRAO_DESFECHO = re.compile(
 )
 
 
-def extrair_desfecho(resposta: str) -> str:
-    """Lê o rótulo de decisão da primeira linha.
+def extrair_desfecho_bruto(resposta: str) -> str | None:
+    """Devolve o rótulo se e somente se ele casar exatamente; None caso contrário.
 
-    Se o modelo não emitir rótulo reconhecível, devolve `DESFECHO_PADRAO`, que
-    aponta para o caminho que sempre exige validação humana. Falha de parsing
-    degrada para o comportamento mais conservador, nunca para um que dispense
-    revisão médica.
+    Separada de `extrair_desfecho` porque o chamador precisa distinguir um
+    rótulo válido de um fallback. A métrica de auditoria depende disso: sem a
+    distinção, uma resposta que começa com "DESFECHO:" mas traz um rótulo
+    corrompido (`SUGERIR CONDUÇÃO`, observado em execução real) seria contada
+    como acerto do modelo.
     """
     correspondencia = _PADRAO_DESFECHO.match(resposta.strip())
-    if correspondencia:
-        return correspondencia.group(1).upper()
-    return config.DESFECHO_PADRAO
+    return correspondencia.group(1).upper() if correspondencia else None
+
+
+def extrair_desfecho(resposta: str) -> str:
+    """Lê o rótulo de decisão da primeira linha, com fallback conservador.
+
+    `DESFECHO_PADRAO` aponta para o caminho que sempre exige validação humana.
+    Falha de parsing degrada para o comportamento mais conservador, nunca para
+    um que dispense revisão médica.
+    """
+    return extrair_desfecho_bruto(resposta) or config.DESFECHO_PADRAO
 
 
 def tem_guardrail(resposta: str) -> bool:

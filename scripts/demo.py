@@ -41,9 +41,11 @@ from src.llm import modelo as m  # noqa: E402
 # ("bfloat16"), não o apelido "bf16", que `carregar_modelo` rejeita.
 DTYPE_CPU = "bfloat16"
 
-# Reduzido em relação aos 400 do config: em CPU cada token custa caro, e as
-# quatro perguntas acima se respondem com a primeira parte da resposta.
-MAX_NEW_TOKENS = 200
+# Orçamento cheio, igual ao do config. Um teste anterior com 200 truncou a
+# resposta no meio da enumeração, o que impedia medir a pergunta 3: sem espaço
+# para fechar o texto, a ausência do guardrail não distingue "o modelo não
+# emitiu" de "o modelo não chegou lá".
+MAX_NEW_TOKENS = 400
 
 CASOS = [
     ("PAC-001", "Qual a conduta para este paciente?"),
