@@ -419,18 +419,44 @@ Execução dos 8 pacientes em GPU T4, modelo em 4-bit.
 
 ### 7.1 Métricas gerais
 
-| Métrica | Resultado |
-|---|---|
-| Citação de fonte na resposta | 8/8 |
-| Fonte recuperada pertinente ao caso | 8/8 |
-| Ressalva de validação na resposta final | 8/8 |
-| — espontânea do modelo | 7/8 |
-| — inserida por código | 1/8 |
-| Rótulo de decisão válido emitido pelo modelo | 2/8 |
-| — clinicamente correto | 0/8 |
-| Registros de auditoria completos | 8/8 |
+Duas execuções completas dos 8 pacientes em GPU T4, modelo em 4-bit. A segunda
+ocorreu após a ampliação da detecção de gravidade, e é a referência.
+
+| Métrica | Execução 1 | Execução 2 |
+|---|---|---|
+| Citação de fonte na resposta | 8/8 | 8/8 |
+| Fonte recuperada pertinente ao caso | 8/8 | 8/8 |
+| Ressalva de validação na resposta final | 8/8 | 8/8 |
+| — espontânea do modelo | 7/8 | 8/8 |
+| — inserida por código | 1/8 | 0/8 |
+| Rótulo de decisão sintaticamente válido | 2/8 | 4/8 |
+| — clinicamente correto | 0/2 | 0/4 |
+| Erros de conteúdo clínico identificados | 3/8 | 1/8 |
+| Registros de auditoria completos | 8/8 | 8/8 |
 
 Tempo médio: ~30 s por consulta em T4, contra ~500 s em CPU.
+
+#### Comparação com o modelo base
+
+O mesmo pipeline foi executado com o modelo base, sem adapters LoRA, sobre dois
+pacientes — o que permite atribuir os efeitos observados ao fine-tuning.
+
+| Comportamento | Modelo base | Fine-tuned |
+|---|---|---|
+| Ressalva de validação espontânea | 0/2 | 8/8 |
+| Emissão de rótulo `DESFECHO:` | 0/2 | 4/8 (nenhum correto) |
+| Citação de protocolo recuperado | 2/2 | 8/8 |
+| Formato enumerado e estruturado | 2/2 | 8/8 |
+
+A comparação separa o que cada camada entrega:
+
+- **A ressalva de validação é efeito do fine-tuning** — 0/2 no base contra 8/8
+  no treinado.
+- **A citação de protocolo é efeito do RAG**, não do fine-tuning: o modelo base
+  cita `PROT-001` e `PROT-007` corretamente, porque o contexto está no prompt.
+- **O rótulo de decisão é o único comportamento treinado que falhou
+  completamente** — zero acertos clínicos em 6 rótulos válidos ao longo das duas
+  execuções.
 
 ### 7.2 Avaliação da recuperação
 
@@ -476,23 +502,27 @@ mudança pretendia eliminar.
 O modelo continua emitindo o rótulo `DESFECHO:`, mas ele não decide o fluxo.
 Comparar os dois mede quão confiável seria delegar a decisão ao LLM.
 
-Resultado: **nenhum dos 8 casos produziu rótulo utilizável.**
+Resultado: em duas execuções (16 respostas), **6 rótulos sintaticamente válidos
+e nenhum clinicamente correto.**
+
+Falhas da execução 2:
 
 | Paciente | Primeira linha da resposta |
 |---|---|
-| PAC-002 | `DESFECHO: VERIFICAR` |
-| PAC-006 | `DESFECHO: VERIFICAR CONTA` |
-| PAC-007, PAC-008 | `DESFECHO: AVALIAR` |
-| PAC-004, PAC-005 | `DESFECHO: SUGERIR_CONDUTA` (válido, clinicamente errado) |
-| PAC-001, PAC-003 | nenhum rótulo |
+| PAC-002 | `DESFECHO: VERIFICAR ANÁLISE` |
+| PAC-003 | `DESFECHO: VERIFICAR VALIDAÇÃO DO MÉDICO RESPONSÁVEL` |
+| PAC-007 | `DESFECHO: AVALIAR` |
+| PAC-004, 005, 006, 008 | `DESFECHO: SUGERIR_CONDUTA` (válido, clinicamente errado) |
+| PAC-001 | nenhum rótulo |
 
-Os dois rótulos sintaticamente válidos são os mais preocupantes: classificaram
-AVC em janela terapêutica (NIHSS 8) e cetoacidose diabética grave (pH 7,18) como
-conduta de rotina. Um rótulo válido e errado é mais perigoso que nenhum rótulo,
-porque passaria por qualquer validação de formato.
+Na execução 1 os rótulos inválidos foram outros (`VERIFICAR`, `VERIFICAR
+CONTA`, `AVALIAR`), e em CPU com bfloat16 o modelo produziu `SUGERIR CONDUÇÃO`.
+Os rótulos inválidos não se repetem entre execuções.
 
-Em execução anterior, em CPU com bfloat16, o modelo produzira `SUGERIR CONDUÇÃO`
-— corrupção de token distinta, mesma taxa de acerto: zero.
+Os quatro rótulos válidos da execução 2 são os mais preocupantes: classificaram
+AVC em janela terapêutica, cetoacidose grave, pé diabético com sepse e choque
+séptico como conduta de rotina. Um rótulo válido e errado é mais perigoso que
+nenhum rótulo, porque passaria por qualquer validação de formato.
 
 **Decisão.** A decisão de fluxo é tomada por código:
 
@@ -532,38 +562,69 @@ problema aberto, e uma formulação não prevista volta a produzir o erro.
 
 ### 7.5 Análise crítica: o que o fine-tuning entrega
 
-Os resultados separam com clareza duas coisas.
+A comparação com o modelo base permite atribuir cada efeito à camada correta.
 
-**Entrega forma.** Em 8/8 respostas o formato está correto: cita fonte no padrão
-esperado, enumera condutas, fecha com a ressalva. O comportamento treinado se
-manifestou.
+**O fine-tuning entrega a ressalva de validação.** Diferença direta: 0/2 no
+modelo base contra 8/8 no treinado. É o comportamento de segurança exigido pelo
+enunciado, e é atribuível ao treino.
 
-**Não entrega substância.** Em 3 dos 8 casos o conteúdo clínico está errado.
+**A citação de fonte é efeito do RAG, não do fine-tuning.** O modelo base cita
+`PROT-001` e `PROT-007` corretamente, porque o contexto está no prompt. O
+fine-tuning ensinou o formato da citação, não a capacidade de citar.
 
-**Caso 1 — inversão do protocolo recuperado.** No paciente com sepse, com o
-`PROT-001` corretamente recuperado e presente no contexto, o modelo escreveu:
+**O rótulo de decisão falhou completamente.** Zero acertos clínicos em 6
+rótulos válidos, ao longo de duas execuções. É o único comportamento treinado
+sem utilidade prática.
+
+**Não entrega correção de conteúdo.** Em 16 respostas, 4 erros clínicos.
+
+**Caso 1 — distorção do protocolo recuperado.** Ocorreu nas duas execuções, em
+pacientes diferentes.
+
+Execução 1, paciente com sepse, com o `PROT-001` no contexto:
 
 > "O protocolo prevê antibioticoterapia empírica **antes** da coleta de
 > hemocultura."
 
-O protocolo determina o oposto, e o texto estava no contexto fornecido. A própria
-resposta se contradiz no item seguinte, instruindo a coletar antes.
+Execução 2, paciente com pé diabético infectado:
 
-Isso é qualitativamente diferente de falha de recuperação: a fonte está correta e
-o modelo distorce o que ela diz. Nenhuma melhoria no RAG corrige esse erro.
+> "1. **Suspender** antibioticoterapia empírica conforme PROT-001 antes de
+> coletar hemocultura.
+> 2. Coletar hemocultura antes do antibiótico conforme PROT-001.
+> 3. Coletar lactato sérico **antes da hemocultura** conforme PROT-001."
 
-**Caso 2 — posologia inventada.** No paciente em pós-operatório:
+No segundo caso há três defeitos: "suspender" onde o protocolo manda iniciar,
+contradição direta entre os itens 1 e 2, e uma ordem de precedência que o
+protocolo não estabelece.
+
+**O achado relevante é a natureza estocástica do erro.** O paciente que errou
+na execução 1 acertou na 2; outro, que havia acertado, passou a errar. Com
+`temperatura=0.3`, o mesmo prompt produz respostas diferentes e o erro de
+fidelidade **muda de lugar**.
+
+Isso é pior que um erro reprodutível: não há caso específico a corrigir, e a
+taxa de aproximadamente 1 em 8 se distribui de forma imprevisível. Reduzir a
+temperatura a zero tornaria as respostas determinísticas, mas não há evidência
+de que eliminaria o erro — apenas de que o fixaria num lugar.
+
+**Caso 2 — posologia inventada.** Execução 1, paciente em pós-operatório:
 
 > "A dose inicial pode ser 100 mg enoxaparina dupla via (20 mg cada viço) por 24
 > horas, seguida de dose única de 40 mg dupla via."
 
 A dose não consta do `PROT-011`, que trata de indicação e contraindicação sem
-especificar posologia. "Viço" é corrupção de token.
+especificar posologia. "Viço" é corrupção de token. Na execução 2 o mesmo
+paciente não apresentou o erro.
 
-**Caso 3 — classificação de gravidade equivocada**, já descrito em 7.3.
+**Caso 3 — classificação de gravidade equivocada**, descrito em 7.3.
 
-Em todos os três o erro vem acompanhado de citação formalmente correta, o que o
-torna mais difícil de detectar, não menos.
+Em todos, o erro vem acompanhado de citação formalmente correta, o que o torna
+mais difícil de detectar, não menos.
+
+**Corrupção de tokens.** Ao longo das execuções: `SUGERIR CONDUÇÃO`,
+`efoxaparina`, `viço`, `PROTO-019 PROT-019`, `monitorizar contínua`. Palavras
+quase corretas, com trocas plausíveis — sugere que parte do problema é
+capacidade do modelo de 3B, não apenas volume de treino.
 
 ### 7.6 Reposicionamento das camadas
 
@@ -607,10 +668,13 @@ encontrados por leitura das respostas, não por método. Não há métrica autom
 de fidelidade ao protocolo recuperado, e construí-la exigiria anotação por
 profissional de saúde.
 
-**Baseline incompleto.** A comparação com o modelo base sem adapters ficou como
-célula opcional no notebook de demonstração e não foi executada na rodada final.
-Sem ela, a atribuição das melhorias de formato ao fine-tuning é inferência, não
-medição.
+**Baseline parcial.** A comparação com o modelo base cobriu 2 dos 8 pacientes.
+A atribuição do guardrail ao fine-tuning se sustenta (0/2 contra 8/8 é
+diferença grande), mas as demais comparações são indicativas.
+
+**Variabilidade não caracterizada.** Duas execuções mostraram que o erro de
+fidelidade ao contexto muda de paciente entre rodadas. Caracterizar a
+distribuição desse erro exigiria dezenas de execuções, o que não foi feito.
 
 **Anonimização por regex.** Solução com casos de borda conhecidos, como o
 episódio das quatro iniciais. Em produção, ferramentas dedicadas (Microsoft
@@ -637,6 +701,12 @@ uma justificada por medição:
   rótulo válido, classificou urgência como rotina
 - **Escopo de recuperação**, porque similaridade de texto não separava protocolo
   pertinente de irrelevante, com diferença de 0.008 entre as medianas
+
+A comparação com o modelo base fecha a atribuição: a ressalva de validação é
+efeito do fine-tuning (0/2 contra 8/8), a citação de fonte é efeito do RAG (o
+modelo base também cita corretamente), e o rótulo de decisão é o único
+comportamento treinado sem utilidade — zero acertos clínicos em 6 rótulos
+válidos.
 
 O que o LLM faz bem neste sistema é gerar texto estruturado e citar fonte no
 formato correto — 8/8 nas duas métricas. O que ele não faz é garantir a correção
@@ -675,5 +745,6 @@ camada que faz o sistema seguro.
 | Log da execução completa | `docs/resultados/demo.jsonl` |
 | Diagrama do fluxo | `docs/resultados/diagrama_grafo.png` |
 | Análise e limitações | `docs/analise_e_limitacoes.md` |
+| Suíte de testes | `tests/` — 133 testes |
 | Modelo publicado | https://huggingface.co/mvaraujo1977/assistente-medico-lora |
 | Repositório | https://github.com/mvaraujo1977/TECH-CHALLENGE-3 |

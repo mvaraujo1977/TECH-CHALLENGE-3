@@ -372,20 +372,44 @@ rastreável até o arquivo e a seção.
 
 ## Resultados
 
-Execução dos 8 pacientes em GPU T4, modelo em 4-bit.
+Duas execuções completas dos 8 pacientes em GPU T4, modelo em 4-bit. A segunda
+ocorreu após a ampliação da detecção de gravidade, e é a referência.
 
-| Métrica | Resultado |
-|---|---|
-| Citação de fonte na resposta | 8/8 |
-| Fonte recuperada pertinente ao caso | 8/8 |
-| Ressalva de validação na resposta final | 8/8 |
-| — espontânea do modelo | 7/8 |
-| — inserida por código | 1/8 |
-| Rótulo de decisão válido emitido pelo modelo | 2/8 |
-| — clinicamente correto | 0/8 |
-| Registros de auditoria completos | 8/8 |
+| Métrica | Execução 1 | Execução 2 |
+|---|---|---|
+| Citação de fonte na resposta | 8/8 | 8/8 |
+| Fonte recuperada pertinente ao caso | 8/8 | 8/8 |
+| Ressalva de validação na resposta final | 8/8 | 8/8 |
+| — espontânea do modelo | 7/8 | 8/8 |
+| — inserida por código | 1/8 | 0/8 |
+| Rótulo de decisão sintaticamente válido | 2/8 | 4/8 |
+| — clinicamente correto | 0/2 | 0/4 |
+| Erros de conteúdo clínico identificados | 3/8 | 1/8 |
+| Registros de auditoria completos | 8/8 | 8/8 |
 
-Tempo médio: ~30 s por consulta em T4.
+Tempo médio: ~30 s por consulta em T4, contra ~500 s em CPU.
+
+### Comparação com o modelo base
+
+O mesmo pipeline foi executado com o modelo base, sem adapters LoRA, sobre dois
+pacientes — o que permite atribuir os efeitos observados ao fine-tuning.
+
+| Comportamento | Modelo base | Fine-tuned |
+|---|---|---|
+| Ressalva de validação espontânea | 0/2 | 8/8 |
+| Emissão de rótulo `DESFECHO:` | 0/2 | 4/8 (nenhum correto) |
+| Citação de protocolo recuperado | 2/2 | 8/8 |
+| Formato enumerado e estruturado | 2/2 | 8/8 |
+
+A comparação separa o que cada camada entrega:
+
+- **A ressalva de validação é efeito do fine-tuning** — 0/2 no base contra 8/8
+  no treinado.
+- **A citação de protocolo é efeito do RAG**, não do fine-tuning: o modelo base
+  cita `PROT-001` e `PROT-007` corretamente, porque o contexto está no prompt.
+- **O rótulo de decisão é o único comportamento treinado que falhou
+  completamente** — zero acertos clínicos em 6 rótulos válidos ao longo das duas
+  execuções.
 
 ### Recuperação
 
@@ -393,16 +417,30 @@ Medição da camada de RAG isolada, sem o LLM. Detalhes em
 `docs/resultados/validacao_rag.md`.
 
 | | Filtro por similaridade | Escopo curado |
-|---|---|---|
+|---|---:|---:|
 | Acertos | 3/11 | 11/11 |
 | Protocolo de outra condição | 5 | 0 |
 | Faltantes | 8 | 0 |
+
+### Testes automatizados
+
+133 testes cobrindo a regra de decisão, o guardrail, a detecção de gravidade, a
+recuperação e o fluxo completo. Rodam sem GPU e sem baixar modelo, em cerca de
+2 segundos.
+
+```bash
+uv pip install -e ".[dev]"
+python -m pytest
+```
+
+Vários testes são regressões de defeitos encontrados em execução real, e trazem
+no docstring o problema que os originou.
 
 **A análise crítica completa, incluindo os erros clínicos encontrados nas
 respostas geradas, está em
 [`docs/analise_e_limitacoes.md`](docs/analise_e_limitacoes.md).** É leitura
 necessária para interpretar os números acima — o formato está correto em 8/8,
-mas o conteúdo clínico apresenta erros em 3/8.
+mas houve 4 erros de conteúdo clínico em 16 respostas.
 
 ---
 
@@ -413,11 +451,15 @@ preferência. Ambas movem responsabilidade do LLM para código determinístico.
 
 ### 1. O roteamento não é delegado ao modelo
 
-**Medição.** O modelo falhou em emitir um rótulo de decisão utilizável em 8 de
-8 casos: rótulos inventados (`VERIFICAR`, `VERIFICAR CONTA`, `AVALIAR`),
-ausência de rótulo, ou rótulo válido com classificação clinicamente errada. Em
-CPU com bfloat16, produziu `SUGERIR CONDUÇÃO` — corrupção diferente, mesma taxa
-de acerto.
+**Medição.** Em duas execuções (16 respostas), o modelo produziu 6 rótulos
+sintaticamente válidos e **nenhum clinicamente correto**. Os demais foram
+rótulos inventados (`VERIFICAR`, `VERIFICAR CONTA`, `VERIFICAR ANÁLISE`,
+`AVALIAR`, `VERIFICAR VALIDAÇÃO DO MÉDICO RESPONSÁVEL`) ou ausência de rótulo.
+Em CPU com bfloat16, produziu `SUGERIR CONDUÇÃO`.
+
+Os rótulos inválidos não se repetem entre execuções — cada rodada inventa
+variações próprias, o que indica ausência de aderência confiável ao formato, e
+não um modo de falha específico a corrigir.
 
 **Decisão.** `decidir_desfecho()` aplica uma regra explícita sobre o prontuário:
 
@@ -430,8 +472,11 @@ nenhum dos dois      → SUGERIR_CONDUTA
 Gravidade tem precedência: um paciente instável com exames pendentes precisa de
 alerta imediato, e o nó de alerta lista os pendentes de todo modo.
 
-**Efeito.** Em 2 dos 8 casos o modelo classificou urgência como rotina — AVC em
-janela terapêutica e cetoacidose grave. A regra corrigiu ambos.
+**Efeito.** Na execução 2, **4 dos 8 casos** tiveram o modelo classificando
+urgência como conduta de rotina: AVC em janela terapêutica, cetoacidose grave,
+pé diabético com protocolo de sepse ativado, e choque séptico com 8 sinais de
+gravidade. Em todos, o rótulo era sintaticamente válido e passaria por qualquer
+validação de formato. A regra corrigiu os quatro.
 
 O rótulo do modelo continua sendo registrado (`desfecho_do_modelo`) e comparado
 com a decisão (`concorda_com_modelo`), o que mantém a métrica de concordância
@@ -482,10 +527,12 @@ significado do documento. Corrigido e validado em 8 casos de negação.
 Resumo. A análise completa está em
 [`docs/analise_e_limitacoes.md`](docs/analise_e_limitacoes.md).
 
-- **O modelo erra conteúdo clínico.** Em 3 de 8 respostas: inversão do que o
-  protocolo recuperado diz, posologia inventada, classificação de gravidade
-  equivocada. O erro vem com citação formalmente correta, o que o torna mais
-  difícil de detectar.
+- **O modelo distorce conteúdo clínico, de forma imprevisível.** Em 16
+  respostas, 4 erros: inversão do que o protocolo recuperado diz, posologia
+  inventada, classificação de gravidade equivocada. O erro **muda de paciente
+  entre execuções** — o caso que errou na primeira rodada acertou na segunda, e
+  outro passou a errar. Com temperatura 0.3 não há caso específico a corrigir, e
+  a taxa de ~1 em 8 se distribui de forma imprevisível.
 - **Exatidão regulatória não validada.** Protocolos, códigos, listas de
   controle e posologias são fictícios e não foram revisados por profissional de
   saúde.
@@ -532,6 +579,7 @@ Resumo. A análise completa está em
 | Dataset anonimizado | `data/dataset_medico.jsonl` |
 | Diagrama do fluxo | `docs/resultados/diagrama_grafo.png` |
 | Avaliação e análise | `docs/analise_e_limitacoes.md`, `docs/resultados/` |
+| Suíte de testes | `tests/` — 133 testes |
 
 ---
 
