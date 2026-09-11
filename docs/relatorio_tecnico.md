@@ -636,8 +636,8 @@ capacidade do modelo de 3B, não apenas volume de treino.
 | Validação humana | — | É a única camada que cobre o conteúdo |
 
 A exigência de validação humana, que o enunciado apresenta como requisito de
-segurança, não é formalidade de conformidade. Na execução medida, é a única
-camada capaz de interceptar a inversão do `PROT-001` antes que chegue ao
+segurança, não é formalidade de conformidade. Nas execuções medidas, é a única
+camada capaz de interceptar as distorções do `PROT-001` antes que cheguem ao
 paciente.
 
 ---
