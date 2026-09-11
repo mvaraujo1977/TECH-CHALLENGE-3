@@ -415,7 +415,7 @@ permitindo rastrear até o arquivo e a seção.
 
 ## 7. Avaliação e análise dos resultados
 
-Execução dos 8 pacientes em GPU T4, modelo em 4-bit.
+Avaliação do sistema a partir de execuções completas da base de pacientes.
 
 ### 7.1 Métricas gerais
 
@@ -535,9 +535,9 @@ nenhum dos dois      → SUGERIR_CONDUTA
 Gravidade tem precedência sobre exames pendentes: paciente instável precisa de
 alerta imediato, e o nó de alerta lista os pendentes de todo modo.
 
-Nos dois casos em que o modelo classificou urgência como rotina, a regra
-corrigiu. Se o roteamento dependesse do LLM, ambos seguiriam o caminho de menor
-urgência.
+Nos quatro casos em que o modelo classificou urgência como rotina na execução 2,
+a regra corrigiu. Se o roteamento dependesse do LLM, todos seguiriam o caminho de
+menor urgência.
 
 ### 7.4 Detecção de gravidade
 
@@ -645,9 +645,9 @@ paciente.
 ## 8. Limitações
 
 **Escala.** 8 pacientes, 14 protocolos, 95 exemplos de treino. Os números
-indicam tendência, não significância estatística. Uma taxa de 3/8 de erro
-clínico tem intervalo de confiança largo demais para comparação com qualquer
-referência.
+indicam tendência, não significância estatística. Uma taxa de 4 erros clínicos
+em 16 respostas tem intervalo de confiança largo demais para comparação com
+qualquer referência.
 
 **Dados sintéticos.** Protocolos, prontuários, doses e códigos são fictícios,
 gerados por LLM e revisados por amostragem, sem validação clínica. A avaliação
@@ -663,10 +663,10 @@ presença de padrão por palavra-chave. Medem se a ressalva está no texto, não
 adequada ao conteúdo; medem se há código citado, não se a citação sustenta a
 afirmação feita.
 
-**Correção clínica não medida sistematicamente.** Os três erros de conteúdo foram
-encontrados por leitura das respostas, não por método. Não há métrica automática
-de fidelidade ao protocolo recuperado, e construí-la exigiria anotação por
-profissional de saúde.
+**Correção clínica não medida sistematicamente.** Os quatro erros de conteúdo
+foram encontrados por leitura das respostas, não por método. Não há métrica
+automática de fidelidade ao protocolo recuperado, e construí-la exigiria anotação
+por profissional de saúde.
 
 **Baseline parcial.** A comparação com o modelo base cobriu 2 dos 8 pacientes.
 A atribuição do guardrail ao fine-tuning se sustenta (0/2 contra 8/8 é
@@ -697,8 +697,9 @@ a partir disso.
 Duas responsabilidades foram movidas do modelo para código determinístico, cada
 uma justificada por medição:
 
-- **Roteamento**, porque o modelo falhou em 8/8 casos e, nos dois em que produziu
-  rótulo válido, classificou urgência como rotina
+- **Roteamento**, porque em 16 respostas o modelo produziu apenas 6 rótulos
+  sintaticamente válidos, nenhum clinicamente correto — e os válidos
+  classificaram urgência como rotina
 - **Escopo de recuperação**, porque similaridade de texto não separava protocolo
   pertinente de irrelevante, com diferença de 0.008 entre as medianas
 
@@ -710,7 +711,7 @@ válidos.
 
 O que o LLM faz bem neste sistema é gerar texto estruturado e citar fonte no
 formato correto — 8/8 nas duas métricas. O que ele não faz é garantir a correção
-do conteúdo clínico, e três casos em oito documentam isso com precisão.
+do conteúdo clínico, e quatro casos em dezesseis documentam isso com precisão.
 
 Para um sistema de apoio à decisão em saúde, essa é a conclusão útil: o valor não
 está em automatizar a decisão, mas em organizar e apresentar informação
