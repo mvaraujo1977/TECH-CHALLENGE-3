@@ -2,7 +2,7 @@
 name = "assistente-medico"
 version = "0.1.0"
 description = "Assistente clínico de apoio à decisão — Tech Challenge Fase 3"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 dependencies = [
     # LangChain

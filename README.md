@@ -1,5 +1,7 @@
 # Tech Challenge — Fase 3
 
+[![testes](https://github.com/mvaraujo1977/TECH-CHALLENGE-3/actions/workflows/testes.yml/badge.svg)](https://github.com/mvaraujo1977/TECH-CHALLENGE-3/actions/workflows/testes.yml)
+
 Assistente virtual médico de apoio à decisão clínica: LLM com fine-tuning,
 recuperação de protocolos internos via LangChain e fluxo de decisão
 automatizado com LangGraph.

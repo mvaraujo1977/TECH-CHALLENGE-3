@@ -198,9 +198,13 @@ jobs:
               sys.exit(1)
           PY
 
-      # Notebooks com saída salva incham o repositório e podem vazar conteúdo
-      # de execução. O notebook 02 é exceção deliberada: seus outputs são a
-      # evidência de que o treino rodou, e vão para o relatório.
+      # Valida que cada notebook abre como JSON e está em nbformat 4 — um
+      # notebook corrompido só daria erro na hora de abrir no Colab.
+      #
+      # A contagem de células com saída sai como informação, não como critério:
+      # nada aqui falha por causa dela. Hoje o 02 é o único com outputs salvos,
+      # de propósito — são a evidência de que o treino rodou, e vão para o
+      # relatório.
       - name: Notebooks são JSON válido
         run: |
           python - <<'PY'
