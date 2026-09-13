@@ -585,8 +585,9 @@ Resumo. A análise completa está em
 
 ## Equipe
 
-<!-- Preencher com os integrantes do grupo -->
-
 | Nome | RM |
-|---|---|
-| | |
+|------|-----|
+| Benicio Antonio Cardoso | 371527 |
+| Marcelo Viana de Araújo | 372707 |
+| Nirton Afonso de Oliveira Filho | 370221 |
+| Valkiria Nonato de Faria | 373256 |
