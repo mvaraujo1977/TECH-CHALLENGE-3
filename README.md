@@ -55,6 +55,10 @@ prontuários, e devolve uma resposta que:
 ```
 START
   ↓
+classificar_risco        guardrail de entrada, determinístico
+  ↓
+[BLOQUEADO?] ──sim──> recusar ──> END
+  ↓ não
 carregar_paciente        consulta a base estruturada de prontuários
   ↓
 recuperar_protocolos     RAG sobre os protocolos internos (LangChain + Chroma)
@@ -78,6 +82,11 @@ decidir_desfecho         regra determinística sobre o prontuário
 O diagrama é gerado a partir do grafo compilado
 (`grafo.get_graph().draw_mermaid_png()`), não desenhado à parte — logo não
 divergem.
+
+> ⚠️ A imagem está desatualizada: foi gerada antes do guardrail de entrada e não
+> mostra os nós `classificar_risco` e `recusar`. O fluxo em texto acima reflete o
+> grafo atual. Para regerar, execute a seção 3 de
+> `notebooks/03_demo_assistente.ipynb`.
 
 ### As três camadas de conhecimento
 
@@ -110,9 +119,13 @@ TECH-CHALLENGE-3/
 │   │   ├── estado.py            EstadoClinico (TypedDict)
 │   │   ├── nos.py               nós do grafo + regra de decisão
 │   │   └── fluxo.py             montagem do grafo + AssistenteClinico
+│   ├── seguranca/
+│   │   ├── politica.py          política de risco versionada (guardrail de entrada)
+│   │   └── avaliacao.py         matriz de confusão e direção dos erros
 │   └── auditoria/
 │       └── registro.py          logging estruturado em JSONL
 ├── data/
+│   ├── benchmarks/              prompts rotulados da política de risco
 │   ├── protocolos/              14 protocolos internos (base do RAG)
 │   ├── prontuarios.json         8 pacientes fictícios
 │   ├── dataset_medico.jsonl     95 exemplos de fine-tuning
@@ -130,6 +143,7 @@ TECH-CHALLENGE-3/
 │       ├── avaliacao_modelo.json métricas do fine-tuning
 │       ├── validacao_rag.md     medição da recuperação
 │       ├── demo.jsonl           log da execução completa
+│       ├── seguranca_*.json     avaliação da política de risco
 │       └── diagrama_grafo.png   fluxo do LangGraph
 ├── logs/                        registros de auditoria (não versionados)
 ├── verificar_ambiente.py        valida o ambiente sem baixar modelo
@@ -311,7 +325,33 @@ recuperação — veja [Decisões de projeto](#decisões-de-projeto).
 
 O requisito 3 do desafio pede três coisas. Como cada uma foi atendida:
 
-### Limites de atuação
+### Limites de atuação — na entrada
+
+Antes de qualquer processamento, um guardrail determinístico classifica a
+solicitação em quatro categorias de risco:
+
+| Categoria | Quando se aplica | Tratamento |
+|---|---|---|
+| `INFORMATIVO` | Consulta sobre protocolo, processo ou estrutura de documento | Resposta normal |
+| `DADOS_PACIENTE` | Envolve dados de um paciente concreto | Resposta com fontes obrigatórias |
+| `CONDUTA_CLINICA` | Pede conduta, dose, prescrição, alta ou diagnóstico | Rascunho para validação humana |
+| `BLOQUEADO` | Tenta contornar a validação médica, obter prescrição autônoma, falsificar documento ou subverter as instruções | **Fluxo interrompido** |
+
+Em `BLOQUEADO`, o grafo termina em `classificar_risco → recusar`: o modelo não é
+consultado, o retriever não é acionado, e a recusa é gerada por código com texto
+fixo. O motivo de cada bloqueio fica registrado em auditoria, com o código da
+regra e a versão da política.
+
+A política vive em [`src/seguranca/politica.py`](src/seguranca/politica.py), tem
+15 regras versionadas e é avaliada contra 78 prompts rotulados — veja
+[Resultados](#resultados).
+
+**Por que regras e não um classificador:** auditabilidade (dá para ver qual
+regra disparou), estabilidade (o próprio modelo fine-tuned variou entre
+execuções) e assimetria de custo (subestimar risco é muito pior que
+superestimar).
+
+### Limites de atuação — na saída
 
 O assistente nunca prescreve diretamente. A ressalva de validação humana é
 garantida em **duas camadas**:
@@ -422,11 +462,37 @@ Medição da camada de RAG isolada, sem o LLM. Detalhes em
 | Protocolo de outra condição | 5 | 0 |
 | Faltantes | 8 | 0 |
 
+### Política de risco
+
+Avaliada sobre 78 prompts rotulados manualmente: 52 no benchmark principal e 26
+num holdout com formulações inéditas. A métrica que importa não é a acurácia
+global, e sim a **direção dos erros** — subestimar o risco deixa a solicitação
+seguir com menos salvaguardas; superestimar só custa usabilidade.
+
+| Conjunto | Versão 1.0.0 | Versão 1.1.0 | Subestimação (1.1.0) |
+|---|---:|---:|---:|
+| Benchmark (52) | 96,2% | **100%** | 0 |
+| Holdout (26) | 84,6% | **96,2%** | 0 |
+
+A queda de 11,6 pontos no holdout revelou três lacunas reais que o benchmark não
+pegou — dose sem a palavra "dose", "não precisa de aprovação" em vez de "sem
+validação", e especialidade médica em vez de "médico". A versão 1.1.0 corrigiu as
+três.
+
+**Ressalva:** as correções foram feitas a partir dos erros do holdout, o que o
+torna não-independente. Os 96,2% medem desempenho sobre dados que orientaram o
+ajuste, não generalização. A medição pré-correção está preservada em
+`docs/resultados/seguranca_holdout_v1_pre_correcao.json`.
+
+```bash
+python -m src.seguranca.avaliacao   # roda sem GPU, em menos de um segundo
+```
+
 ### Testes automatizados
 
-133 testes cobrindo a regra de decisão, o guardrail, a detecção de gravidade, a
-recuperação e o fluxo completo. Rodam sem GPU e sem baixar modelo, em cerca de
-2 segundos.
+189 testes cobrindo a regra de decisão, a política de risco, o guardrail, a
+detecção de gravidade, a recuperação e o fluxo completo. Rodam sem GPU e sem
+baixar modelo, em cerca de 2 segundos.
 
 ```bash
 uv pip install -e ".[dev]"
@@ -564,7 +630,8 @@ Resumo. A análise completa está em
 | — consulta a base estruturada | ✅ | `src/rag/prontuarios.py` |
 | — contextualização com dados do paciente | ✅ | `src/graph/nos.py` |
 | **3. Segurança e validação** | ✅ | |
-| — limites de atuação | ✅ | `garantir_guardrail()` em `src/llm/modelo.py` |
+| — limites de atuação (entrada) | ✅ | `src/seguranca/politica.py` — política de risco versionada |
+| — limites de atuação (saída) | ✅ | `garantir_guardrail()` em `src/llm/modelo.py` |
 | — logging detalhado | ✅ | `src/auditoria/registro.py` |
 | — explainability | ✅ | `citar_fontes()` + metadados dos chunks |
 | **4. Organização do código** | ✅ | `src/` modularizado, este README |
@@ -579,7 +646,7 @@ Resumo. A análise completa está em
 | Dataset anonimizado | `data/dataset_medico.jsonl` |
 | Diagrama do fluxo | `docs/resultados/diagrama_grafo.png` |
 | Avaliação e análise | `docs/analise_e_limitacoes.md`, `docs/resultados/` |
-| Suíte de testes | `tests/` — 133 testes |
+| Suíte de testes | `tests/` — 189 testes |
 
 ---
 
