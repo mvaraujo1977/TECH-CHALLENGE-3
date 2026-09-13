@@ -14,23 +14,31 @@ contextualizadas, e logs e validação das respostas. Cada uma tem um bloco.
 
 - [ ] Notebook `03_demo_assistente.ipynb` aberto no Colab, **já executado até o fim**, com todos os outputs visíveis
 - [ ] Repositório aberto numa aba: `github.com/mvaraujo1977/TECH-CHALLENGE-3`
-- [ ] Página do modelo noutra: `huggingface.co/mvaraujo1977/assistente-medico-lora`
+- [ ] Aba **Actions** do GitHub aberta, mostrando o CI verde
+- [ ] Página do modelo noutra aba: `huggingface.co/mvaraujo1977/assistente-medico-lora`
 - [ ] Notebook `02_finetuning.ipynb` aberto, com a curva de perda visível
 - [ ] Fonte do navegador em **125% ou 150%** — terminal em fonte pequena fica ilegível no vídeo
 - [ ] Painel de Secrets do Colab **fechado**, e nunca aberto durante a gravação
 
 **Teste antes:** reexecute uma célula qualquer para confirmar que a sessão do
-Colab ainda responde. Se tiver expirado, a demonstração ao vivo do bloco 5
+Colab ainda responde. Se tiver expirado, a demonstração ao vivo do bloco 6
 falha.
 
 **Grave bloco por bloco.** Treze minutos seguidos sem erro é difícil, e juntar
 na edição custa menos que refazer.
 
+**Ordem sugerida de gravação:** comece pelos blocos 6 e 7, que são os mais
+densos. A abertura é a parte mais fácil de refazer se sair ruim.
+
+**A ordem dos blocos acompanha a do notebook**, de cima para baixo — seções 3,
+4, 7, 8, 9 e 10. Nada de rolar para trás durante a gravação.
+
 ---
 
 ## Bloco 1 — Abertura (1 min)
 
-**Mostrar:** README no GitHub, rolando até o diagrama da arquitetura.
+**Mostrar:** README no GitHub, com o badge de CI visível no topo, rolando até o
+diagrama da arquitetura.
 
 **Dizer:**
 
@@ -144,7 +152,35 @@ na edição custa menos que refazer.
 
 ---
 
-## Bloco 5 — O guardrail de entrada (2 min)
+## Bloco 5 — O assistente funcionando (2 min)
+
+**Mostrar:** seção 7, rolando até dois pacientes específicos.
+
+Escolha estes dois, que exercitam caminhos diferentes:
+
+- **PAC-001** — exames pendentes, roteia para `VERIFICAR_EXAMES`
+- **PAC-008** — sepse com 8 sinais de gravidade, roteia para `EMITIR_ALERTA`
+
+**Dizer, apontando a saída:**
+
+> Quatro coisas em cada resposta.
+>
+> Primeiro, as ações recomendadas vêm da base estruturada, não do texto do
+> modelo — os exames pendentes são os que estão no prontuário. Se o modelo
+> alucinar um exame, a lista continua correta.
+>
+> Segundo, a ressalva de validação humana.
+>
+> Terceiro, as fontes consultadas, com código e versão do protocolo. E a
+> citação vem do documento que o retriever recuperou, não do código que o
+> modelo escreveu — os códigos que ele produz não são confiáveis.
+>
+> E embaixo, o caminho percorrido no grafo com o motivo da decisão: "8 sinais de
+> gravidade nos sinais vitais".
+
+---
+
+## Bloco 6 — O guardrail de entrada (2 min)
 
 Este bloco é a melhor demonstração ao vivo do vídeo.
 
@@ -193,34 +229,6 @@ Este bloco é a melhor demonstração ao vivo do vídeo.
 >
 > Depois da correção: 100% no benchmark, 96% no holdout, zero subestimações nos
 > dois.
-
----
-
-## Bloco 6 — O assistente funcionando (2 min)
-
-**Mostrar:** seção 7, rolando até dois pacientes específicos.
-
-Escolha estes dois, que exercitam caminhos diferentes:
-
-- **PAC-001** — exames pendentes, roteia para `VERIFICAR_EXAMES`
-- **PAC-008** — sepse com 8 sinais de gravidade, roteia para `EMITIR_ALERTA`
-
-**Dizer, apontando a saída:**
-
-> Quatro coisas em cada resposta.
->
-> Primeiro, as ações recomendadas vêm da base estruturada, não do texto do
-> modelo — os exames pendentes são os que estão no prontuário. Se o modelo
-> alucinar um exame, a lista continua correta.
->
-> Segundo, a ressalva de validação humana.
->
-> Terceiro, as fontes consultadas, com código e versão do protocolo. E a
-> citação vem do documento que o retriever recuperou, não do código que o
-> modelo escreveu — os códigos que ele produz não são confiáveis.
->
-> E embaixo, o caminho percorrido no grafo com o motivo da decisão: "8 sinais de
-> gravidade nos sinais vitais".
 
 ---
 
@@ -275,7 +283,9 @@ Este é o bloco que diferencia a apresentação. **Não corte.**
 
 ---
 
-## Bloco 8 — Auditoria e testes (1 min)
+## Bloco 8 — Auditoria, testes e CI (1,5 min)
+
+### 8.1 Auditoria (0,5 min)
 
 **Mostrar:** seção 10, as estatísticas e um registro JSONL completo.
 
@@ -290,12 +300,35 @@ Este é o bloco que diferencia a apresentação. **Não corte.**
 > uma em oito. Numa execução em CPU, com precisão numérica diferente, foi uma em
 > duas — é por isso que a camada de código existe.
 
-**Mostrar:** a célula dos testes, com o `189 passed`.
+### 8.2 Testes e CI (1 min)
 
-> E 189 testes automatizados, que rodam sem GPU e sem baixar modelo, em dois
-> segundos. Vários são regressões de defeitos que levaram tempo para encontrar —
-> um falso positivo na verificação do guardrail, uma cegueira a negação que
-> fazia "sem hemorragia" disparar alerta hemorrágico.
+**Mostrar:** a aba **Actions** do GitHub, com a execução verde. Clique numa
+execução para mostrar os quatro jobs.
+
+**Dizer:**
+
+> 189 testes automatizados, rodando a cada push em três versões de Python. Sem
+> GPU e sem baixar modelo — isso é possível porque os nós do grafo recebem o
+> retriever e a função de geração por injeção de dependência, então os testes
+> usam dublês.
+>
+> Vários são regressões de defeitos que levaram tempo para encontrar. Um falso
+> positivo na verificação do guardrail: a ação "acionar o médico responsável"
+> contém as mesmas palavras da ressalva de validação, então o detector achava
+> que o aviso já estava lá e não o inseria. Outro: uma cegueira a negação que
+> fazia o laudo "sem hemorragia" disparar alerta hemorrágico.
+
+**Apontar o job de integridade.**
+
+> E além dos testes, cinco verificações de integridade dos dados. Duas valem
+> destaque: uma confere que todos os protocolos têm frontmatter válido, e outra
+> que todo código citado nos prontuários existe como documento — é esse vínculo
+> que faz o escopo de recuperação funcionar, e um código órfão produziria escopo
+> vazio sem nenhum sinal de erro.
+>
+> Um detalhe: o passo que avalia a política de risco **quebra o CI** se houver
+> qualquer subestimação. Uma alteração nas regras que deixe passar um pedido
+> impróprio não chega a ser mesclada.
 
 ---
 
@@ -330,12 +363,12 @@ Este é o bloco que diferencia a apresentação. **Não corte.**
 | 2. Fine-tuning | 3:00 | Treinamento da LLM personalizada |
 | 3. Arquitetura | 1:30 | Fluxo automatizado |
 | 4. Recuperação | 1:30 | Perguntas contextualizadas |
-| 5. Guardrail de entrada | 2:00 | Limites de atuação |
-| 6. Assistente funcionando | 2:00 | Fluxo + perguntas contextualizadas |
+| 5. Assistente funcionando | 2:00 | Fluxo + perguntas contextualizadas |
+| 6. Guardrail de entrada | 2:00 | Limites de atuação |
 | 7. Achado principal | 2:30 | — (diferencial) |
-| 8. Auditoria e testes | 1:00 | Logs e validação |
+| 8. Auditoria, testes e CI | 1:30 | Logs e validação |
 | 9. Fechamento | 0:30 | — |
-| **Total** | **13:00** | |
+| **Total** | **13:30** | |
 
 ---
 
@@ -344,11 +377,11 @@ Este é o bloco que diferencia a apresentação. **Não corte.**
 Corte nesta ordem:
 
 1. **Bloco 2.1** — reduza a 30 s. É a parte menos visual.
-2. **Bloco 6** — mostre um paciente em vez de dois.
-3. **Bloco 7**, o último parágrafo (a inversão do protocolo de sepse).
-4. **Bloco 8** — corte a parte dos testes, mantenha a auditoria.
+2. **Bloco 5** — mostre um paciente em vez de dois.
+3. **Bloco 8.2** — corte a parte das verificações de integridade, mantenha o CI verde e os 189 testes.
+4. **Bloco 7**, o último parágrafo (a inversão do protocolo de sepse).
 
-**Não corte:** o bloco 5 (bloqueio ao vivo) nem o bloco 7 inteiro. São as
+**Não corte:** o bloco 6 (bloqueio ao vivo) nem o bloco 7 inteiro. São as
 partes que mostram medição e rigor, e o que diferencia a apresentação de uma
 demonstração de funcionalidade.
 
@@ -381,4 +414,5 @@ que expira é acidente comum, e reconhecer é melhor que fingir que não acontec
 | Rótulos válidos do LLM | 5/8, com 0 concordâncias |
 | Recuperação: antes e depois | 3/11 → 11/11 |
 | Política: benchmark e holdout | 100% e 96%, zero subestimações |
-| Testes | 189 |
+| Testes | 189, em 3 versões de Python |
+| Erro clínico | ~1 em 8 respostas |
