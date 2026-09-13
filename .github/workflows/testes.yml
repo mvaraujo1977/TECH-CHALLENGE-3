@@ -1,0 +1,240 @@
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  testes:
+    name: Suíte automatizada (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # O `pyproject.toml` declara torch entre as dependências principais
+      # porque o assistente precisa dele para rodar. Na CI, porém, nada que é
+      # testado carrega modelo: os nós do grafo recebem o retriever e a função
+      # de geração por injeção de dependência, e os testes usam dublês. Por
+      # isso instalamos apenas o que a suíte exerce — torch sozinho passa de
+      # 800 MB e levaria minutos em cada job da matriz.
+      - name: Instalar dependências (sem GPU, sem modelo)
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "langchain-core>=0.3" \
+            "langchain-text-splitters>=0.3" \
+            "langchain-chroma>=0.1.4" \
+            "chromadb>=0.5" \
+            "langgraph>=0.2" \
+            "pyyaml>=6.0" \
+            "pytest>=8.0"
+
+      - name: Rodar a suíte
+        run: python -m pytest -q
+
+      - name: Avaliar a política de risco
+        # Sai com código 1 se houver qualquer subestimação de risco — o erro
+        # que a política existe para impedir. Uma alteração nas regras que
+        # deixe passar um pedido impróprio quebra a CI.
+        run: python -m src.seguranca.avaliacao
+
+  integridade:
+    name: Integridade dos dados e dos notebooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências mínimas
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      # Os protocolos são a base do RAG. Um frontmatter malformado passaria
+      # silenciosamente: o documento seria indexado sem metadado, e a citação
+      # de fonte perderia código e versão — quebrando a explainability sem
+      # nenhum erro visível.
+      - name: Protocolos com frontmatter válido
+        run: |
+          python - <<'PY'
+          import pathlib, sys, yaml
+
+          problemas = []
+          arquivos = sorted(pathlib.Path("data/protocolos").glob("*.md"))
+
+          if not arquivos:
+              sys.exit("::error::nenhum protocolo encontrado em data/protocolos/")
+
+          for caminho in arquivos:
+              texto = caminho.read_text(encoding="utf-8")
+              if not texto.startswith("---"):
+                  problemas.append(f"{caminho.name}: sem frontmatter")
+                  continue
+              bruto = texto.split("---", 2)[1]
+              try:
+                  meta = yaml.safe_load(bruto) or {}
+              except yaml.YAMLError as erro:
+                  problemas.append(f"{caminho.name}: YAML inválido ({erro})")
+                  continue
+              for campo in ("codigo", "titulo", "setor"):
+                  if not meta.get(campo):
+                      problemas.append(f"{caminho.name}: falta '{campo}'")
+
+          print(f"{len(arquivos)} protocolos verificados")
+          if problemas:
+              print("\n".join(f"::error::{p}" for p in problemas))
+              sys.exit(1)
+          PY
+
+      # O escopo de recuperação depende deste vínculo. Um código de protocolo
+      # no prontuário sem documento correspondente produziria escopo vazio —
+      # e o paciente ficaria sem protocolo, sem sinal de erro.
+      - name: Prontuários referenciam protocolos existentes
+        run: |
+          python - <<'PY'
+          import json, pathlib, re, sys
+
+          codigos = set()
+          for caminho in pathlib.Path("data/protocolos").glob("*.md"):
+              achado = re.search(r"^codigo:\s*(\S+)", caminho.read_text(encoding="utf-8"), re.M)
+              if achado:
+                  codigos.add(achado.group(1))
+
+          base = json.loads(pathlib.Path("data/prontuarios.json").read_text(encoding="utf-8"))
+
+          problemas = []
+          for paciente in base["pacientes"]:
+              for codigo in paciente.get("protocolos_relacionados", []):
+                  if codigo not in codigos:
+                      problemas.append(f"{paciente['id']} cita {codigo}, que não existe")
+
+          print(f"{len(base['pacientes'])} prontuários verificados contra {len(codigos)} protocolos")
+          if problemas:
+              print("\n".join(f"::error::{p}" for p in problemas))
+              sys.exit(1)
+          PY
+
+      # O dataset de fine-tuning é entregável do projeto. Uma linha malformada
+      # o tornaria irreprodutível, e o erro só apareceria durante o treino.
+      - name: Dataset de fine-tuning é JSONL válido
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          from collections import Counter
+
+          caminho = pathlib.Path("data/dataset_medico.jsonl")
+          obrigatorios = {"instruction", "input", "output", "categoria"}
+
+          problemas = []
+          exemplos = []
+          for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
+              if not linha.strip():
+                  continue
+              try:
+                  exemplo = json.loads(linha)
+              except json.JSONDecodeError as erro:
+                  problemas.append(f"linha {numero}: JSON inválido ({erro})")
+                  continue
+              faltando = obrigatorios - set(exemplo)
+              if faltando:
+                  problemas.append(f"linha {numero}: falta {sorted(faltando)}")
+              exemplos.append(exemplo)
+
+          print(f"{len(exemplos)} exemplos | {dict(Counter(e['categoria'] for e in exemplos))}")
+          if problemas:
+              print("\n".join(f"::error::{p}" for p in problemas))
+              sys.exit(1)
+          PY
+
+      # Os benchmarks de segurança sustentam as métricas do relatório. Se o
+      # holdout repetisse perguntas do benchmark, mediria memorização das
+      # regras em vez de generalização.
+      - name: Benchmarks de segurança sem sobreposição
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+
+          def carregar(nome):
+              caminho = pathlib.Path("data/benchmarks") / nome
+              return [
+                  json.loads(linha)
+                  for linha in caminho.read_text(encoding="utf-8").splitlines()
+                  if linha.strip()
+              ]
+
+          benchmark = carregar("seguranca.jsonl")
+          holdout = carregar("seguranca_holdout.jsonl")
+
+          repetidas = (
+              {i["pergunta"].strip().lower() for i in benchmark}
+              & {i["pergunta"].strip().lower() for i in holdout}
+          )
+
+          print(f"benchmark: {len(benchmark)} | holdout: {len(holdout)}")
+          if repetidas:
+              for pergunta in sorted(repetidas):
+                  print(f"::error::pergunta repetida nos dois conjuntos: {pergunta}")
+              sys.exit(1)
+          PY
+
+      # Notebooks com saída salva incham o repositório e podem vazar conteúdo
+      # de execução. O notebook 02 é exceção deliberada: seus outputs são a
+      # evidência de que o treino rodou, e vão para o relatório.
+      - name: Notebooks são JSON válido
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+
+          problemas = []
+          for caminho in sorted(pathlib.Path("notebooks").glob("*.ipynb")):
+              try:
+                  nb = json.loads(caminho.read_text(encoding="utf-8"))
+              except json.JSONDecodeError as erro:
+                  problemas.append(f"{caminho.name}: JSON inválido ({erro})")
+                  continue
+              if nb.get("nbformat") != 4:
+                  problemas.append(f"{caminho.name}: nbformat != 4")
+              celulas = len(nb.get("cells", []))
+              com_saida = sum(
+                  1 for c in nb["cells"]
+                  if c["cell_type"] == "code" and c.get("outputs")
+              )
+              print(f"OK {caminho.name} ({celulas} células, {com_saida} com saída)")
+
+          if problemas:
+              print("\n".join(f"::error::{p}" for p in problemas))
+              sys.exit(1)
+          PY
+
+      # Chaves de API em qualquer arquivo versionado. O notebook 01 usa a API
+      # da Anthropic, e o risco de uma key vazar num commit é real.
+      - name: Nenhuma credencial versionada
+        run: |
+          encontrados=$(git grep -lIE "(sk-ant-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|hf_[A-Za-z0-9]{20,})" -- . || true)
+          if [ -n "$encontrados" ]; then
+            echo "::error::possível credencial versionada em:"
+            echo "$encontrados"
+            exit 1
+          fi
+          echo "Nenhuma credencial encontrada."
