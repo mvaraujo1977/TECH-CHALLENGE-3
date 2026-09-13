@@ -305,7 +305,7 @@ padrão aprendido.
 
 ### 4.4 Fluxo de decisão (LangGraph)
 
-Nove nós, dos quais três são os desfechos exigidos pelo enunciado.
+Dez nós, dos quais três são os desfechos exigidos pelo enunciado.
 
 | Nó | Função |
 |---|---|
