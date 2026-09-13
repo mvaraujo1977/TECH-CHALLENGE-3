@@ -16,6 +16,12 @@ class EstadoClinico(TypedDict, total=False):
     pergunta: str
     id_paciente: str | None
 
+    # --- Preenchido por classificar_risco (guardrail de entrada) ---
+    risco: str                   # INFORMATIVO | DADOS_PACIENTE | CONDUTA_CLINICA | BLOQUEADO
+    regras_de_risco: list[str]   # códigos das regras acionadas
+    motivos_de_risco: list[str]  # motivos legíveis, para auditoria
+    versao_politica: str
+
     # --- Preenchido por carregar_paciente ---
     paciente: dict | None
     dados_paciente: str          # prontuário serializado para o prompt

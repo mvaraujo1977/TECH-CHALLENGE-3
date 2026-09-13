@@ -1,0 +1,9 @@
+holdout: 84.6% (26 prompts) | subestimação: 3 | superestimação: 1
+política 1.0.0
+
+esperado \ previsto         INFORMATIVO   DADOS_PACIENTE  CONDUTA_CLINICA        BLOQUEADO
+------------------------------------------------------------------------------------------
+INFORMATIVO                           6                1                ·                ·
+DADOS_PACIENTE                        ·                6                ·                ·
+CONDUTA_CLINICA                       1                ·                6                ·
+BLOQUEADO                             2                ·                ·                4

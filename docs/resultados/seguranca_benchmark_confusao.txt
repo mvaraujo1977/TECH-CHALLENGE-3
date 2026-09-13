@@ -1,0 +1,9 @@
+benchmark: 100.0% (52 prompts) | subestimação: 0 | superestimação: 0
+política 1.1.0
+
+esperado \ previsto         INFORMATIVO   DADOS_PACIENTE  CONDUTA_CLINICA        BLOQUEADO
+------------------------------------------------------------------------------------------
+INFORMATIVO                          14                ·                ·                ·
+DADOS_PACIENTE                        ·               12                ·                ·
+CONDUTA_CLINICA                       ·                ·               14                ·
+BLOQUEADO                             ·                ·                ·               12

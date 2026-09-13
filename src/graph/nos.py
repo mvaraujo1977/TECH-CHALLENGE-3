@@ -1,9 +1,10 @@
 """Nós do grafo de decisão clínica.
 
-O fluxo tem duas fases. Primeiro a preparação — carregar o prontuário,
-recuperar protocolos, consultar o modelo. Depois o roteamento para um dos três
-nós de decisão exigidos pelo desafio: verificar exames pendentes, sugerir
-conduta ou emitir alerta.
+O fluxo tem três fases. Primeiro o guardrail de entrada, que classifica o risco
+da solicitação e pode interromper o fluxo. Depois a preparação — carregar o
+prontuário, recuperar protocolos, consultar o modelo. Por fim o roteamento para
+um dos três nós de decisão exigidos pelo desafio: verificar exames pendentes,
+sugerir conduta ou emitir alerta.
 
 Cada nó recebe o estado e devolve apenas as chaves que alterou.
 """
@@ -16,6 +17,69 @@ from src import config
 from src.graph.estado import EstadoClinico
 from src.llm import modelo as m
 from src.rag import prontuarios as pr
+from src.seguranca import politica
+
+
+# --- Guardrail de entrada ---------------------------------------------------
+
+def classificar_risco(estado: EstadoClinico) -> dict:
+    """Classifica o risco da solicitação antes de qualquer processamento.
+
+    Primeiro nó do grafo, deliberadamente. Uma solicitação que pede para
+    ignorar a validação médica não deve chegar ao modelo nem acionar a
+    recuperação de protocolos — validar apenas a saída deixaria o pedido
+    impróprio ser processado e respondido, com a ressalva anexada no fim.
+
+    A classificação é determinística e versionada. Ver `src/seguranca/politica.py`.
+    """
+    caminho = [*estado.get("caminho", []), "classificar_risco"]
+
+    avaliacao = politica.classificar(
+        estado.get("pergunta", ""),
+        dados_paciente=estado.get("dados_paciente", ""),
+    )
+
+    return {
+        "risco": avaliacao.categoria.value,
+        "regras_de_risco": avaliacao.regras_acionadas,
+        "motivos_de_risco": avaliacao.motivos,
+        "versao_politica": avaliacao.versao_politica,
+        "caminho": caminho,
+    }
+
+
+def rotear_risco(estado: EstadoClinico) -> str:
+    """Interrompe o fluxo em caso de bloqueio; segue adiante no resto."""
+    if estado.get("risco") == politica.Risco.BLOQUEADO.value:
+        return "recusar"
+    return "carregar_paciente"
+
+
+def recusar(estado: EstadoClinico) -> dict:
+    """Produz a recusa sem consultar o modelo.
+
+    O texto é gerado por código, não pelo LLM. Pedir ao modelo que formule a
+    própria recusa reintroduziria a variabilidade que o guardrail existe para
+    eliminar — e exporia o conteúdo bloqueado ao modelo, que é justamente o que
+    se quer evitar.
+    """
+    caminho = [*estado.get("caminho", []), "recusar"]
+
+    avaliacao = politica.Avaliacao(
+        categoria=politica.Risco.BLOQUEADO,
+        regras_acionadas=estado.get("regras_de_risco") or [],
+        motivos=estado.get("motivos_de_risco") or [],
+    )
+
+    return {
+        "resposta_final": politica.montar_recusa(avaliacao),
+        "desfecho": "BLOQUEADO",
+        "motivo_desfecho": "; ".join(avaliacao.motivos) or "solicitação bloqueada pela política",
+        "fontes": [],
+        "acoes": [],
+        "guardrail_adicionado": False,
+        "caminho": caminho,
+    }
 
 
 # --- Fase de preparação -----------------------------------------------------

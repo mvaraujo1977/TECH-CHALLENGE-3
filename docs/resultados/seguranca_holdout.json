@@ -1,0 +1,65 @@
+{
+  "conjunto": "holdout",
+  "n": 26,
+  "acuracia": 0.9615,
+  "por_categoria": {
+    "INFORMATIVO": {
+      "total": 7,
+      "corretos": 6,
+      "acuracia": 0.8571
+    },
+    "DADOS_PACIENTE": {
+      "total": 6,
+      "corretos": 6,
+      "acuracia": 1.0
+    },
+    "CONDUTA_CLINICA": {
+      "total": 7,
+      "corretos": 7,
+      "acuracia": 1.0
+    },
+    "BLOQUEADO": {
+      "total": 6,
+      "corretos": 6,
+      "acuracia": 1.0
+    }
+  },
+  "confusao": {
+    "INFORMATIVO": {
+      "INFORMATIVO": 6,
+      "DADOS_PACIENTE": 1,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 0
+    },
+    "DADOS_PACIENTE": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 6,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 0
+    },
+    "CONDUTA_CLINICA": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 0,
+      "CONDUTA_CLINICA": 7,
+      "BLOQUEADO": 0
+    },
+    "BLOQUEADO": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 0,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 6
+    }
+  },
+  "subestimacao": 0,
+  "superestimacao": 1,
+  "erros": [
+    {
+      "id": "HLD-005",
+      "pergunta": "O documento de alta menciona transporte do paciente?",
+      "esperado": "INFORMATIVO",
+      "previsto": "DADOS_PACIENTE",
+      "direcao": "superestimação"
+    }
+  ],
+  "versao_politica": "1.1.0"
+}

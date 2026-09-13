@@ -38,6 +38,11 @@ class RegistroConsulta:
     fontes: list[dict] = field(default_factory=list)
     trechos_recuperados: int = 0
 
+    # Guardrail de entrada
+    risco: str = ""
+    regras_de_risco: list[str] = field(default_factory=list)
+    versao_politica: str = ""
+
     # Decisão determinística (a que vale)
     desfecho: str = ""
     motivo_desfecho: str = ""
@@ -64,6 +69,8 @@ class RegistroConsulta:
     def resumo(self) -> str:
         """Uma linha legível, para acompanhar a execução ao vivo."""
         partes = [f"[{self.id}]", self.desfecho]
+        if self.risco and self.risco != "BLOQUEADO":
+            partes.append(f"risco {self.risco}")
         if self.id_paciente:
             partes.append(self.id_paciente)
         if self.fontes:
@@ -135,11 +142,21 @@ class Auditoria:
         rotulo_valido = sum(1 for r in registros if r.get("desfecho_do_modelo"))
         concordaram = sum(1 for r in registros if r.get("concorda_com_modelo") is True)
 
+        # Distribuição do guardrail de entrada. `bloqueadas` conta as
+        # solicitações recusadas antes de chegar ao modelo.
+        por_risco: dict[str, int] = {}
+        for r in registros:
+            chave = r.get("risco") or "(sem classificação)"
+            por_risco[chave] = por_risco.get(chave, 0) + 1
+        bloqueadas = sum(1 for r in registros if r.get("risco") == "BLOQUEADO")
+
         duracoes = [r["duracao_s"] for r in registros if r.get("duracao_s")]
 
         return {
             "total": total,
             "por_desfecho": por_desfecho,
+            "por_risco": por_risco,
+            "bloqueadas_na_entrada": f"{bloqueadas}/{total}",
             "com_citacao_de_fonte": f"{com_fonte}/{total}",
             "guardrail_adicionado_por_codigo": f"{guardrail_add}/{total}",
             "llm_emitiu_rotulo_valido": f"{rotulo_valido}/{total}",

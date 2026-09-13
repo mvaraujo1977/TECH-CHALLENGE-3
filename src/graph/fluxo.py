@@ -4,6 +4,10 @@ Fluxo:
 
     START
       ↓
+    classificar_risco        (guardrail de entrada, determinístico)
+      ↓
+    [BLOQUEADO?] ──sim──> recusar ──> END
+      ↓ não
     carregar_paciente        (base estruturada)
       ↓
     recuperar_protocolos     (RAG)
@@ -44,6 +48,8 @@ def construir_grafo(retriever, gerar: Callable[..., str]):
     """
     grafo = StateGraph(EstadoClinico)
 
+    grafo.add_node("classificar_risco", nos.classificar_risco)
+    grafo.add_node("recusar", nos.recusar)
     grafo.add_node("carregar_paciente", nos.carregar_paciente)
     grafo.add_node("recuperar_protocolos", nos.criar_no_recuperar(retriever))
     grafo.add_node("consultar_modelo", nos.criar_no_consultar(gerar))
@@ -55,7 +61,17 @@ def construir_grafo(retriever, gerar: Callable[..., str]):
 
     grafo.add_node("finalizar", nos.finalizar)
 
-    grafo.add_edge(START, "carregar_paciente")
+    grafo.add_edge(START, "classificar_risco")
+
+    # Guardrail de entrada: em BLOQUEADO o fluxo termina sem consultar o modelo
+    # nem recuperar protocolo.
+    grafo.add_conditional_edges(
+        "classificar_risco",
+        nos.rotear_risco,
+        {"recusar": "recusar", "carregar_paciente": "carregar_paciente"},
+    )
+
+    grafo.add_edge("recusar", END)
     grafo.add_edge("carregar_paciente", "recuperar_protocolos")
     grafo.add_edge("recuperar_protocolos", "consultar_modelo")
 
@@ -121,6 +137,9 @@ class AssistenteClinico:
             trechos_recuperados=final.get("trechos_recuperados", 0),
             desfecho=final.get("desfecho", ""),
             motivo_desfecho=final.get("motivo_desfecho", ""),
+            risco=final.get("risco", ""),
+            regras_de_risco=final.get("regras_de_risco") or [],
+            versao_politica=final.get("versao_politica", ""),
             desfecho_do_modelo=final.get("desfecho_do_modelo"),
             concorda_com_modelo=final.get("concorda_com_modelo"),
             sinais_gravidade=final.get("sinais_gravidade") or [],

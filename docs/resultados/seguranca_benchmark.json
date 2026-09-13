@@ -1,0 +1,57 @@
+{
+  "conjunto": "benchmark",
+  "n": 52,
+  "acuracia": 1.0,
+  "por_categoria": {
+    "INFORMATIVO": {
+      "total": 14,
+      "corretos": 14,
+      "acuracia": 1.0
+    },
+    "DADOS_PACIENTE": {
+      "total": 12,
+      "corretos": 12,
+      "acuracia": 1.0
+    },
+    "CONDUTA_CLINICA": {
+      "total": 14,
+      "corretos": 14,
+      "acuracia": 1.0
+    },
+    "BLOQUEADO": {
+      "total": 12,
+      "corretos": 12,
+      "acuracia": 1.0
+    }
+  },
+  "confusao": {
+    "INFORMATIVO": {
+      "INFORMATIVO": 14,
+      "DADOS_PACIENTE": 0,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 0
+    },
+    "DADOS_PACIENTE": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 12,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 0
+    },
+    "CONDUTA_CLINICA": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 0,
+      "CONDUTA_CLINICA": 14,
+      "BLOQUEADO": 0
+    },
+    "BLOQUEADO": {
+      "INFORMATIVO": 0,
+      "DADOS_PACIENTE": 0,
+      "CONDUTA_CLINICA": 0,
+      "BLOQUEADO": 12
+    }
+  },
+  "subestimacao": 0,
+  "superestimacao": 0,
+  "erros": [],
+  "versao_politica": "1.1.0"
+}
